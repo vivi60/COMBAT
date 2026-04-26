@@ -2,27 +2,24 @@
 let myProfile = { name: "", type: "", side: "" }; 
 let currentRoomId = ""; 
 
-// [2] 캐릭터 선택 함수
+// [2] 캐릭터 선택 함수 수정
 function selectCharacter(name, isAdmin, num) {
     myProfile.name = name;
+    // 선택한 캐릭터의 이미지 번호를 이름 뒤에 임시로 붙여서 저장합니다. (예: "레오 휘틀리|2")
+    myProfile.charId = `${name}|${num || 1}`; 
     myProfile.type = isAdmin ? "ADMIN" : "PLAYER";
 
     const profileDisplay = document.getElementById('user-profile-display');
-    const myNameEl = document.getElementById('my-char-name');
-    const myImgEl = document.getElementById('my-char-img');
-
     if (profileDisplay) {
         profileDisplay.classList.remove('hidden');
-        myNameEl.innerText = name; 
+        document.getElementById('my-char-name').innerText = name; 
         const firstName = name.split(' ')[0];
-        const imageNum = num || "1"; 
-        myImgEl.innerHTML = `<img src="image/${firstName}${imageNum}.png" class="w-full h-full object-cover" onerror="this.src='image/default.png'">`;
+        document.getElementById('my-char-img').innerHTML = `<img src="image/${firstName}${num || 1}.png" class="w-full h-full object-cover">`;
     }
 
     document.getElementById('character-selection').classList.add('hidden');
     document.getElementById('game-lobby').classList.remove('hidden');
 }
-
 // [3] 방 만들기
 async function createRoom(type, title) {
     const newRoomId = title + "_" + Math.floor(Math.random() * 1000);
@@ -46,32 +43,27 @@ async function createRoom(type, title) {
     joinRoom(newRoomId, "left");
 }
 
-// [4] 방 입장
+// [4] 방 입장 시 닉네임 저장 수정
 async function joinRoom(roomId, side) {
     myProfile.side = side;
     currentRoomId = roomId;
-    
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
-    const roomSnap = await window.dbUtils.getDoc(roomRef);
-    const currentCount = roomSnap.exists() ? (roomSnap.data().playersCount || 0) : 0;
-
+    
     const updateData = {
-        playersCount: currentCount + 1,
         messages: window.dbUtils.arrayUnion({
             sender: "시스템",
-            text: `${myProfile.name} 님이 ${side === 'left' ? '왼쪽' : '오른쪽'} 팀으로 입장했습니다.`,
+            text: `${myProfile.name} 님이 입장했습니다.`,
             timestamp: new Date().getTime()
         })
     };
-    updateData[`name_${side}`] = myProfile.name;
+    // 이름과 이미지 번호 정보를 함께 서버에 저장합니다.
+    updateData[`name_${side}`] = myProfile.charId; 
 
     await window.dbUtils.updateDoc(roomRef, updateData);
-
-    const profileDisplay = document.getElementById('user-profile-display');
-    if (profileDisplay) profileDisplay.classList.add('hidden');
+    
+    if (document.getElementById('user-profile-display')) document.getElementById('user-profile-display').classList.add('hidden');
     document.getElementById('game-lobby').classList.add('hidden');
     document.getElementById('battle-screen').classList.remove('hidden');
-    
     startRealtimeUpdate(roomId);
 }
 
@@ -110,7 +102,7 @@ async function determineTurnOrderShared(data) {
     });
 }
 
-// [7] 실시간 업데이트
+// [7] 실시간 업데이트 내 이미지 출력 로직 (가장 중요)
 function startRealtimeUpdate(roomId) {
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
     window.dbUtils.onSnapshot(roomRef, (doc) => {
@@ -121,13 +113,17 @@ function startRealtimeUpdate(roomId) {
             const nameEl = document.getElementById(`name-${side}`);
             const imgEl = document.getElementById(`img-${side}`);
             const dBox = document.getElementById(`dice-${side}`);
-            const currentName = data[`name_${side}`];
+            const rawData = data[`name_${side}`]; // "이름|번호" 형태
 
-            if (currentName) {
-                nameEl.innerText = currentName;
-                const firstName = currentName.split(' ')[0];
-                const charNum = currentName.replace(/[^0-9]/g, "") || "1"; 
-                imgEl.innerHTML = `<img src="image/${firstName}${charNum}.png" class="w-full h-full object-cover" onerror="this.src='image/default.png'">`;
+            if (rawData && rawData.includes('|')) {
+                const [fullName, num] = rawData.split('|');
+                const firstName = fullName.split(' ')[0];
+                nameEl.innerText = fullName;
+                imgEl.innerHTML = `<img src="image/${firstName}${num}.png" class="w-full h-full object-cover">`;
+            } else if (rawData) {
+                // 기존 데이터 호환용
+                nameEl.innerText = rawData;
+                imgEl.innerHTML = '<span class="text-gray-500">No Image</span>';
             } else {
                 nameEl.innerText = "대기 중...";
                 imgEl.innerHTML = '<span class="text-gray-500 italic">No Image</span>';
