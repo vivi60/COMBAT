@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>유포리아 전투 시스템</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-[#1c1c1b] text-white font-sans">
+
+    <div id="character-selection" class="flex flex-col items-center justify-center min-h-screen">
+        <h1 class="text-4xl mb-8 font-bold">캐릭터를 선택하세요</h1>
+        <div id="char-grid" class="grid grid-cols-6 gap-4 p-4 max-w-4xl">
+            </div>
+    </div>
+
+    <div id="game-lobby" class="hidden flex flex-col items-center justify-center min-h-screen">
+        <h2 class="text-3xl mb-6">게임 로비</h2>
+        <div class="flex gap-4 mb-8">
+            <button onclick="createRoom('1vs1')" class="bg-blue-600 px-6 py-2 rounded">1vs1 방 만들기</button>
+            <button onclick="createRoom('2vs2')" class="bg-purple-600 px-6 py-2 rounded">2vs2 방 만들기</button>
+        </div>
+        <div id="room-list" class="w-full max-w-md bg-gray-800 p-4 rounded shadow-lg">
+            <p class="text-center text-gray-400">생성된 방이 없습니다.</p>
+        </div>
+    </div>
+
+    <div id="battle-screen" class="hidden h-screen flex flex-col p-4">
+        <div class="text-center mb-4">
+            <span id="round-display" class="text-2xl text-yellow-400 font-bold">ROUND 1 / 5</span>
+        </div>
+
+        <div class="flex justify-between items-center flex-grow px-20">
+            <div id="team-left" class="flex flex-col items-center">
+                <div class="dice-box mb-4" id="dice-left">?</div>
+                <div class="character-img w-64 h-80 bg-gray-700 rounded-lg shadow-xl" id="img-left"></div>
+                <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
+                    <div id="hp-left" class="bg-red-500 h-full w-full"></div>
+                </div>
+                <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-left">
+                    <button class="bg-red-600 px-4 py-2 rounded" onclick="selectAction('공격')">공격</button>
+                    <button class="bg-blue-600 px-4 py-2 rounded" onclick="selectAction('회피')">회피</button>
+                    <button class="bg-green-600 px-4 py-2 rounded" onclick="selectAction('방어')">방어</button>
+                    <button class="bg-gray-600 px-4 py-2 rounded" onclick="selectAction('도주')">도주</button>
+                </div>
+            </div>
+
+            <div class="text-5xl font-black italic text-gray-500">VS</div>
+
+            <div id="team-right" class="flex flex-col items-center">
+                <div class="dice-box mb-4" id="dice-right">?</div>
+                <div class="character-img w-64 h-80 bg-gray-700 rounded-lg shadow-xl" id="img-right"></div>
+                <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
+                    <div id="hp-right" class="bg-red-500 h-full w-full"></div>
+                </div>
+                <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-right">
+                    <button class="bg-red-600 px-4 py-2 rounded">공격</button>
+                    <button class="bg-blue-600 px-4 py-2 rounded">회피</button>
+                    <button class="bg-green-600 px-4 py-2 rounded">방어</button>
+                    <button class="bg-gray-600 px-4 py-2 rounded">도주</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="chat-area" class="h-40 bg-black/50 border-t border-gray-600 p-2 flex flex-col">
+            <div id="chat-messages" class="flex-grow overflow-y-auto text-sm space-y-1 mb-2"></div>
+            <div class="flex gap-2">
+                <input type="text" id="chat-input" class="flex-grow bg-gray-800 border-none px-3 py-1 text-sm outline-none" placeholder="메시지를 입력하세요...">
+                <button onclick="sendChat()" class="bg-yellow-600 px-4 text-sm font-bold">전송</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ready-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden">
+        <div class="bg-gray-900 p-10 rounded-lg text-center border border-gray-700">
+            <h3 class="text-2xl mb-6">모든 플레이어가 준비되었습니다.</h3>
+            <button id="start-game-btn" class="bg-red-600 px-10 py-3 text-xl font-bold hidden">전투 시작 (관리자)</button>
+            <p id="waiting-msg" class="text-gray-400">관리자의 시작을 기다리는 중...</p>
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyC_J9Crb7nvK1S23ll3n6Dih-SavqI8mEM",
+        authDomain: "combat-e82f9.firebaseapp.com",
+        projectId: "combat-e82f9",
+        storageBucket: "combat-e82f9.firebasestorage.app",
+        messagingSenderId: "117962743763",
+        appId: "1:117962743763:web:6a42215586c00c812ad926"
+    };
+
+    // 초기화
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // game.js에서 사용할 수 있도록 전역 윈도우 객체에 주입
+    window.db = db;
+    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc };
+
+    // 주입이 완료된 후 game.js를 로드합니다.
+    const script = document.createElement('script');
+    script.src = 'game.js';
+    document.body.appendChild(script);
+</script>
+
+<script src="game.js"></script>
+
+</body>
+</html>

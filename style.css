@@ -1,0 +1,43 @@
+.dice-box {
+    width: 60px;
+    height: 60px;
+    background: white;
+    color: black;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+    transition: transform 0.2s;
+}
+
+.dice-box:hover {
+    transform: scale(1.1);
+}
+
+.dice-rolling {
+    animation: roll 0.2s infinite;
+}
+
+@keyframes roll {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.hp-bar div {
+    transition: width 0.5s ease-in-out;
+}
+
+.character-card {
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.3s;
+}
+
+.character-card:hover {
+    border-color: #E7E7E7;
+    background: rgba(255,255,255,0.1);
+}
