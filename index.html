@@ -32,7 +32,7 @@
 
         <div class="flex justify-between items-center flex-grow px-20">
             <div id="team-left" class="flex flex-col items-center">
-                <div class="dice-box mb-4" id="dice-left">?</div>
+                <div class="dice-box mb-4" id="dice-left" onclick="rollDice('left')">?</div>
                 <div class="character-img w-64 h-80 bg-gray-700 rounded-lg shadow-xl" id="img-left"></div>
                 <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
                     <div id="hp-left" class="bg-red-500 h-full w-full"></div>
@@ -48,7 +48,7 @@
             <div class="text-5xl font-black italic text-gray-500">VS</div>
 
             <div id="team-right" class="flex flex-col items-center">
-                <div class="dice-box mb-4" id="dice-right">?</div>
+                <div class="dice-box mb-4" id="dice-right" onclick="rollDice('right')">?</div>
                 <div class="character-img w-64 h-80 bg-gray-700 rounded-lg shadow-xl" id="img-right"></div>
                 <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
                     <div id="hp-right" class="bg-red-500 h-full w-full"></div>
@@ -95,17 +95,15 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // game.js에서 사용할 수 있도록 전역 윈도우 객체에 주입
+    // 전역 객체 주입
     window.db = db;
-    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection }; // collection 추가
+    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection };
 
-    // 주입이 완료된 후 game.js를 로드합니다.
+    // game.js를 여기서 한 번만 로드합니다.
     const script = document.createElement('script');
     script.src = 'game.js';
     document.body.appendChild(script);
 </script>
-
-<script src="game.js"></script>
 
 </body>
 </html>

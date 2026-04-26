@@ -16,7 +16,9 @@ function selectCharacter(name, isAdmin) {
 
 // 2. 방 만들기 (Firebase에 문서 생성)
 async function createRoom(type) {
-    const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    // 랜덤한 방 ID 생성 (예: room_12345)
+    const newRoomId = "room_" + Math.floor(Math.random() * 100000);
+    const roomRef = window.dbUtils.doc(window.db, "rooms", newRoomId);
     
     const initialData = {
         roomType: type,
@@ -31,7 +33,7 @@ async function createRoom(type) {
     };
 
     await window.dbUtils.setDoc(roomRef, initialData);
-    joinRoom(currentRoomId, "left"); // 방 만든 사람은 기본적으로 왼쪽
+    joinRoom(newRoomId, "left"); // 생성된 새 ID로 입장
 }
 
 // 3. 방 입장 및 실시간 감시 시작
@@ -183,18 +185,23 @@ function listenToRoomList() {
     });
 }
 
-// 페이지가 로드될 때 방 목록 감시 시작
-// 기존 window.onload 에 추가하거나 별도로 실행
-const originalOnload = window.onload;
-window.onload = function() {
-    if(originalOnload) originalOnload();
-    listenToRoomList();
-};
+// game.js 맨 하단
 
-// 페이지 로드 시 실행
-window.onload = initSelection;
+// 모든 초기화 함수를 하나로 합침
+function init() {
+    initSelection();   // 캐릭터 그리드 생성
+    listenToRoomList(); // 방 목록 실시간 감시
+}
 
-// HTML 버튼들과 연결하기 위해 함수들을 window에 할당
+// 기존 window.onload = init; 대신 아래 코드를 사용하면 더 확실합니다.
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    init();
+} else {
+    window.onload = init;
+}
+
+// HTML 버튼들과 연결하기 위한 전역 할당
 window.rollDice = rollDice;
 window.createRoom = createRoom;
+window.joinRoom = joinRoom; // 입장 함수도 연결 필요
 window.sendChat = sendChat;
