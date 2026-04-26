@@ -25,6 +25,7 @@ async function createRoom(type) {
         dice_right: 0,
         playersCount: 0, 
         currentRound: 1,
+        isDetermined: false, // [추가] 판정 중복 방지 플래그
         gameStarted: false,
         messages: []
     };
@@ -77,17 +78,19 @@ async function rollDice(side) {
     });
 }
 
-// [6] 선공 판정 전역 공유 (채팅창에 기록)
+// [6] 선공 판정 전역 공유 수정
 async function determineTurnOrderShared(data) {
-    // 이미 선공 메시지가 있다면 중복 전송 방지
-    const isAlreadyDetermined = data.messages.some(m => m.text.includes("선공입니다!"));
-    if (isAlreadyDetermined) return;
+    // 이미 판정이 완료되었다면 함수 종료
+    if (data.isDetermined === true) return;
 
     let winnerName = data.dice_left >= data.dice_right ? data.name_left : data.name_right;
     let winnerSide = data.dice_left >= data.dice_right ? "왼쪽" : "오른쪽";
 
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    
+    // 메시지 추가와 동시에 isDetermined를 true로 업데이트
     await window.dbUtils.updateDoc(roomRef, {
+        isDetermined: true, // 이제 다시는 이 블록에 들어오지 않음
         messages: window.dbUtils.arrayUnion({
             sender: "시스템",
             text: `다이스 결과: ${winnerName} 님이 선공입니다! (${winnerSide} 팀)`,
