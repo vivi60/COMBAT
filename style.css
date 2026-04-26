@@ -165,3 +165,50 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* 라운드 표시 (ROUND 1/5) */
+#round-display {
+    color: var(--light-green) !important;
+    /* [수정] 1px 두께의 검정색 테두리 추가 */
+    -webkit-text-stroke: 1.5px #49724c; 
+    /* 기존 그림자는 글자를 띄워주는 느낌으로 유지 */
+    text-shadow: 2px 2px 4px rgba(205, 205, 205, 0.5);
+    font-size: 2rem;
+    font-weight: 900;
+}
+
+/* 팀 이름 색상 */
+#name-left { color: #57825a !important; }
+#name-right { color: #57825a !important; } /* 오른쪽은 적군 느낌을 위해 연한 붉은색 유지 혹은 녹색 톤 조절 가능 */
+
+/* 캐릭터 이름 (좌, 우) */
+#name-left, #name-right {
+    /* [수정] 1px 두께의 검정색 테두리 추가 */
+    -webkit-text-stroke: 1px #3d5c3f;
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+/* 채팅 전송 버튼 */
+#chat-area button {
+    background-color: var(--main-green) !important;
+    color: white !important;
+    border: 1px solid var(--light-green);
+    transition: background 0.3s;
+}
+
+#chat-area button:hover {
+    background-color: var(--light-green) !important;
+}
+
+/* 입력창 포커스 효과 */
+#chat-input:focus {
+    border: 1px solid var(--light-green) !important;
+}
+
+/* 사진 크기 조절 (w-64 -> w-56, h-80 -> h-72) */
+.character-img {
+    width: 14rem; /* 224px */
+    height: 18rem; /* 288px */
+    border: 2px solid rgba(255, 255, 255, 0.1);
+}

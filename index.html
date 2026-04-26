@@ -136,7 +136,7 @@
 
 <div id="game-lobby" class="hidden flex flex-col items-center justify-center min-h-screen">
     <div class="lobby-container flex flex-col gap-6">
-        <h2 class="text-3xl font-bold text-center text-light-green italic">LOBBY</h2>
+        <h2 class="text-3xl font-bold text-center text-light-green">LOBBY</h2>
         
         <button onclick="openCreateModal()" class="btn-green w-full py-4 rounded-xl text-xl font-bold shadow-lg">
             + 새 방 만들기
@@ -167,9 +167,8 @@
         <div>
             <label class="text-xs text-gray-300">전투 방식</label>
             <select id="room-type-select" class="w-full bg-black/30 border border-gray-500 rounded p-2 mt-1">
-                <option value="1vs1">1 vs 1 (결투)</option>
-                <option value="2vs2">2 vs 2 (팀전)</option>
-                <option value="ADMIN">이벤트전 (관리자)</option>
+                <option value="1vs1">1 vs 1</option>
+                <option value="2vs2">2 vs 2</option>
             </select>
         </div>
 
@@ -192,7 +191,7 @@
             <div id="team-left" class="flex flex-col items-center">
                 <div class="dice-box mb-4" id="dice-left" onclick="rollDice('left')">?</div>
                 <div id="name-left" class="mb-2 text-xl font-bold text-blue-400">대기 중...</div>
-                <div class="character-img w-64 h-80 bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
+                <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
                 <span class="text-gray-500">No Image</span>
                 </div>
                 <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
@@ -211,7 +210,7 @@
             <div id="team-right" class="flex flex-col items-center">
                 <div class="dice-box mb-4" id="dice-right" onclick="rollDice('right')">?</div>
                 <div id="name-right" class="mb-2 text-xl font-bold text-red-400">대기 중...</div>
-                <div class="character-img w-64 h-80 bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right">
+                <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
                 <span class="text-gray-500">No Image</span>
                 </div>
                 <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
