@@ -228,13 +228,21 @@ function listenToRoomList() {
     window.dbUtils.onSnapshot(roomsCollection, (snapshot) => {
         const roomListDiv = document.getElementById('room-list');
         if(!roomListDiv) return;
+        
         roomListDiv.innerHTML = snapshot.empty ? '<p class="text-center text-gray-400">생성된 방이 없습니다.</p>' : "";
+        
         snapshot.forEach((doc) => {
             const roomData = doc.data();
             const roomItem = document.createElement('div');
             roomItem.className = "flex justify-between items-center bg-gray-700/50 p-3 mb-2 rounded hover:bg-gray-600 transition";
-            roomItem.innerHTML = `<div><span class="text-yellow-400 font-bold">[${roomData.roomType}]</span> ${roomData.roomName || doc.id}</div>
-                <button onclick="joinRoom('${doc.id}', 'right')" class="bg-green-600 px-3 py-1 rounded text-sm">입장</button>`;
+            
+            // doc.id(숫자포함) 대신 roomData.roomName(순수제목)을 먼저 출력하도록 설정합니다
+            const displayName = roomData.roomName ? roomData.roomName : doc.id;
+            
+            roomItem.innerHTML = `
+                <div><span class="text-yellow-400 font-bold">[${roomData.roomType}]</span> ${displayName}</div>
+                <button onclick="joinRoom('${doc.id}', 'right')" class="bg-green-600 px-3 py-1 rounded text-sm">입장</button>
+            `;
             roomListDiv.appendChild(roomItem);
         });
     });
