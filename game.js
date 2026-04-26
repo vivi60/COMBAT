@@ -44,20 +44,23 @@ async function joinRoom(roomId, side) {
     
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
     
-    // 방 데이터 가져와서 인원수 업데이트
-    const roomSnap = await window.dbUtils.getDoc(roomRef);
-    if (roomSnap.exists()) {
-        const currentCount = roomSnap.data().playersCount || 0;
-        await window.dbUtils.updateDoc(roomRef, {
-            playersCount: currentCount + 1
-        });
-    }
+    // 방 데이터에 현재 접속한 유저의 캐릭터 이름 저장
+    const updateData = {};
+    updateData[`name_${side}`] = myProfile.name; // name_left 또는 name_right에 저장
+    
+    // 입퇴장 메시지를 위한 처리
+    updateData['messages'] = window.dbUtils.arrayUnion({
+        sender: "시스템",
+        text: `${myProfile.name} 님이 ${side === 'left' ? '왼쪽' : '오른쪽'} 팀으로 입장했습니다.`,
+        timestamp: new Date().getTime()
+    });
+
+    await window.dbUtils.updateDoc(roomRef, updateData);
 
     document.getElementById('game-lobby').classList.add('hidden');
     document.getElementById('battle-screen').classList.remove('hidden');
     
     startRealtimeUpdate(roomId);
-    systemLog(`${side} 팀으로 입장했습니다.`);
 }
 
 // 창을 닫을 때 인원수 줄이기 (방 폭파 예비 로직)
@@ -107,7 +110,7 @@ function backToCharacterSelection() {
     myProfile = { name: "", type: "", side: "" };
 }
 
-// [추가] 2. 인게임 -> 로비로 돌아가기 (방 인원 관리 포함)
+// 인게임 -> 로비로 돌아가기 (에러 수정 및 최적화 버전)
 async function backToLobby() {
     if (!confirm("정말 전투를 포기하고 로비로 나가시겠습니까?")) return;
 
@@ -116,25 +119,47 @@ async function backToLobby() {
         const roomSnap = await window.dbUtils.getDoc(roomRef);
 
         if (roomSnap.exists()) {
-            const newCount = (roomSnap.data().playersCount || 1) - 1;
-            
+            const data = roomSnap.data();
+            const newCount = (data.playersCount || 1) - 1;
+
             if (newCount <= 0) {
-                // 인원이 0명이면 방 삭제 (deleteDoc 사용)
+                // 1. 인원이 없으면 방 삭제
                 await window.dbUtils.deleteDoc(roomRef);
             } else {
-                // 인원이 남아있으면 인원수만 업데이트
-                await window.dbUtils.updateDoc(roomRef, { 
-                    playersCount: newCount 
-                });
+                // 2. 인원이 남았으면 정보 업데이트 (퇴장 메시지 + 인원 감소 + 이름 제거)
+                const updateData = {
+                    playersCount: newCount,
+                    messages: window.dbUtils.arrayUnion({
+                        sender: "시스템",
+                        text: `${myProfile.name} 님이 퇴장했습니다.`,
+                        timestamp: new Date().getTime()
+                    })
+                };
+                
+                // 내가 있던 자리의 이름을 비웁니다 (다른 사람이 들어올 수 있게)
+                updateData[`name_${myProfile.side}`] = ""; 
+                
+                await window.dbUtils.updateDoc(roomRef, updateData);
             }
         }
     }
 
-    // 상태 초기화 및 화면 전환
+    // 3. 상태 초기화 및 화면 전환
     currentRoomId = "";
     myProfile.side = "";
+    
+    // UI 변경
     document.getElementById('battle-screen').classList.add('hidden');
     document.getElementById('game-lobby').classList.remove('hidden');
+    
+    // 채팅창 초기화 (이전 판 기록 삭제)
+    document.getElementById('chat-messages').innerHTML = "";
+    
+    // 이름 표시 초기화
+    document.getElementById('name-left').innerText = "대기 중...";
+    document.getElementById('name-right').innerText = "대기 중...";
+    document.getElementById('img-left').innerHTML = "";
+    document.getElementById('img-right').innerHTML = "";
 }
 
 // 실시간 업데이트에서 채팅 가져오기
@@ -144,6 +169,25 @@ function startRealtimeUpdate(roomId) {
     window.dbUtils.onSnapshot(roomRef, (doc) => {
         const data = doc.data();
         if (!data) return;
+
+        // 이름 및 이미지 업데이트 (왼쪽)
+        if (data.name_left) {
+            document.getElementById('name-left').innerText = data.name_left;
+            // 캐릭터 이름에서 숫자만 추출하여 이미지 경로 설정 (예: "캐릭터 5" -> 5.png)
+            const charNum = data.name_left.replace(/[^0-9]/g, "");
+            if(charNum) {
+                document.getElementById('img-left').innerHTML = `<img src="images/${charNum}.png" class="w-full h-full object-cover" onerror="this.style.display='none'">`;
+            }
+        }
+
+        // 이름 및 이미지 업데이트 (오른쪽)
+        if (data.name_right) {
+            document.getElementById('name-right').innerText = data.name_right;
+            const charNum = data.name_right.replace(/[^0-9]/g, "");
+            if(charNum) {
+                document.getElementById('img-right').innerHTML = `<img src="images/${charNum}.png" class="w-full h-full object-cover" onerror="this.style.display='none'">`;
+            }
+        }
 
         // 다이스 업데이트
         if (data.dice_left) {
