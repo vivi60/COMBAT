@@ -42,9 +42,21 @@
     background: rgba(255,255,255,0.1);
 }
 
-/* 배경색 전체 적용 */
+/* 배경색 대신 이미지를 적용 */
 body {
-    background-color: #57825a !important;
+    background-image: url('image/bg-light.jpg'); /* 여기에 실제 파일명을 적어주세요 */
+    background-size: cover;      /* 화면에 꽉 차게 조절 */
+    background-position: center; /* 가운데 정렬 */
+    background-attachment: fixed; /* 스크롤해도 배경은 고정 */
+    background-repeat: no-repeat;
+    margin: 0;
+    padding: 0;
+}
+
+/* 캐릭터 선택창 등 각 섹션이 배경을 가리지 않도록 투명도 조절 (필요 시) */
+#character-selection, #game-lobby, #battle-screen {
+    background: rgba(0, 0, 0, 0.1); /* 배경 사진이 잘 보이도록 살짝 어두운 투명막 추가 */
+    min-height: 100 screen;
 }
 
 /* 캐릭터 카드 스타일 */
@@ -71,8 +83,7 @@ body {
     margin-top: 8px;
     font-size: 14px;
     font-weight: bold;
-    color: #f0f0f0;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    color: #090909;
 }
 
 /* 마우스 올렸을 때 효과 */
@@ -83,4 +94,74 @@ body {
 .char-selector:hover img {
     border-color: #ffffff;
     filter: brightness(1.1);
+}
+
+
+/* 녹색 테마 변수 및 기본 설정 */
+:root {
+    --main-green: #57825a;
+    --dark-green: #3d5c3f;
+    --light-green: #89b38c;
+}
+
+/* 로비 중앙 박스 레이아웃 */
+.lobby-container {
+    background: rgba(40, 60, 40, 0.85); /* 깊은 녹색 투명 배경 */
+    border: 2px solid var(--light-green);
+    border-radius: 20px;
+    padding: 30px;
+    width: 90%;
+    max-width: 600px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+    backdrop-filter: blur(10px);
+}
+
+/* 좌상단 프로필 표시 */
+#user-profile-display {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 10px 20px;
+    border-radius: 50px;
+    border: 1px solid var(--light-green);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 100;
+}
+
+/* 방 만들기 모달(팝업) */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+/* 버튼 공통 스타일 */
+.btn-green {
+    background: var(--main-green);
+    transition: all 0.3s;
+    border: 1px solid var(--light-green);
+}
+.btn-green:hover {
+    background: var(--light-green);
+    color: #1a2e1b;
+}
+
+/* 방 목록 박스 */
+#room-list {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.1);
+    height: 300px;
+    overflow-y: auto;
+}
+
+/* 어떤 상황에서도 hidden 클래스가 붙으면 요소를 숨깁니다 */
+.hidden {
+    display: none !important;
 }
