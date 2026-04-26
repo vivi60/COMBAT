@@ -80,7 +80,7 @@ async function rollDice(side) {
 
 // [6] 선공 판정 전역 공유 수정
 async function determineTurnOrderShared(data) {
-    // 이미 판정이 완료되었다면 함수 종료
+    // 1. 이미 판정이 완료된 방이면 즉시 종료
     if (data.isDetermined === true) return;
 
     let winnerName = data.dice_left >= data.dice_right ? data.name_left : data.name_right;
@@ -88,9 +88,9 @@ async function determineTurnOrderShared(data) {
 
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
     
-    // 메시지 추가와 동시에 isDetermined를 true로 업데이트
+    // 2. 서버에 판정 완료 신호와 메시지를 동시에 보냄
     await window.dbUtils.updateDoc(roomRef, {
-        isDetermined: true, // 이제 다시는 이 블록에 들어오지 않음
+        isDetermined: true, 
         messages: window.dbUtils.arrayUnion({
             sender: "시스템",
             text: `다이스 결과: ${winnerName} 님이 선공입니다! (${winnerSide} 팀)`,
@@ -133,11 +133,20 @@ function startRealtimeUpdate(roomId) {
         });
 
         // 양쪽 다이스 완료 시 선공 판정 실행 및 버튼 활성화
-        if (data.dice_left > 0 && data.dice_right > 0) {
-            determineTurnOrderShared(data);
-            const winnerSide = data.dice_left >= data.dice_right ? 'left' : 'right';
-            document.getElementById(`btns-${winnerSide}`).classList.remove('hidden');
-        }
+        // startRealtimeUpdate 함수 내부
+    if (data.dice_left > 0 && data.dice_right > 0) {
+    // [수정] 무분별한 호출이 아니라, 각 측의 '데이터 주인'이 판정 메시지를 보냅니다.
+    const isLeftWinner = data.dice_left >= data.dice_right;
+    
+    // 왼쪽이 이겼는데 내가 왼쪽이거나, 오른쪽이 이겼는데 내가 오른쪽일 때만 DB 업데이트 실행
+    if ((isLeftWinner && myProfile.side === 'left') || (!isLeftWinner && myProfile.side === 'right')) {
+        determineTurnOrderShared(data);
+    }
+
+    // 버튼 활성화는 양쪽 모두에게 실시간으로 일어납니다.
+    const winnerSide = isLeftWinner ? 'left' : 'right';
+    document.getElementById(`btns-${winnerSide}`).classList.remove('hidden');
+}
 
         // 체력 바 및 라운드 동기화
         document.getElementById('hp-left').style.width = (data.hp_left || 100) + "%";
