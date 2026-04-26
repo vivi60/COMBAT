@@ -96,6 +96,47 @@ async function rollDice(side) {
     });
 }
 
+// [추가] 1. 로비 -> 캐릭터 선택으로 돌아가기
+function backToCharacterSelection() {
+    if (!confirm("캐릭터 선택창으로 돌아가시겠습니까?")) return;
+    
+    document.getElementById('game-lobby').classList.add('hidden');
+    document.getElementById('character-selection').classList.remove('hidden');
+    
+    // 선택했던 프로필 초기화
+    myProfile = { name: "", type: "", side: "" };
+}
+
+// [추가] 2. 인게임 -> 로비로 돌아가기 (방 인원 관리 포함)
+async function backToLobby() {
+    if (!confirm("정말 전투를 포기하고 로비로 나가시겠습니까?")) return;
+
+    if (currentRoomId) {
+        const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+        const roomSnap = await window.dbUtils.getDoc(roomRef);
+
+        if (roomSnap.exists()) {
+            const newCount = (roomSnap.data().playersCount || 1) - 1;
+            
+            if (newCount <= 0) {
+                // 인원이 0명이면 방 삭제 (deleteDoc 사용)
+                await window.dbUtils.deleteDoc(roomRef);
+            } else {
+                // 인원이 남아있으면 인원수만 업데이트
+                await window.dbUtils.updateDoc(roomRef, { 
+                    playersCount: newCount 
+                });
+            }
+        }
+    }
+
+    // 상태 초기화 및 화면 전환
+    currentRoomId = "";
+    myProfile.side = "";
+    document.getElementById('battle-screen').classList.add('hidden');
+    document.getElementById('game-lobby').classList.remove('hidden');
+}
+
 // 실시간 업데이트에서 채팅 가져오기
 function startRealtimeUpdate(roomId) {
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
@@ -257,3 +298,6 @@ window.rollDice = rollDice;
 window.createRoom = createRoom;
 window.joinRoom = joinRoom; // 입장 함수도 연결 필요
 window.sendChat = sendChat;
+// [여기에 추가]
+window.backToCharacterSelection = backToCharacterSelection;
+window.backToLobby = backToLobby;
