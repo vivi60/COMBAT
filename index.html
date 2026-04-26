@@ -80,8 +80,13 @@
     </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc, collection } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { 
+        initializeApp 
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { 
+        getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc, collection, deleteDoc, arrayUnion 
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
     const firebaseConfig = {
         apiKey: "AIzaSyC_J9Crb7nvK1S23ll3n6Dih-SavqI8mEM",
         authDomain: "combat-e82f9.firebaseapp.com",
@@ -96,8 +101,8 @@
     const db = getFirestore(app);
 
     // 전역 객체 주입
-    window.db = db;
-    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection };
+    window.db = getFirestore(initializeApp(firebaseConfig));
+    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection, deleteDoc, arrayUnion };
 
     // game.js를 여기서 한 번만 로드합니다.
     const script = document.createElement('script');

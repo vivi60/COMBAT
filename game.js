@@ -37,17 +37,44 @@ async function createRoom(type) {
 }
 
 // 3. 방 입장 및 실시간 감시 시작
-function joinRoom(roomId, side) {
+// 방 입장 시 인원수 체크 로직 추가
+async function joinRoom(roomId, side) {
     myProfile.side = side;
     currentRoomId = roomId;
     
+    const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
+    
+    // 방 데이터 가져와서 인원수 업데이트
+    const roomSnap = await window.dbUtils.getDoc(roomRef);
+    if (roomSnap.exists()) {
+        const currentCount = roomSnap.data().playersCount || 0;
+        await window.dbUtils.updateDoc(roomRef, {
+            playersCount: currentCount + 1
+        });
+    }
+
     document.getElementById('game-lobby').classList.add('hidden');
     document.getElementById('battle-screen').classList.remove('hidden');
     
-    // 실시간 감시(onSnapshot) 시작
     startRealtimeUpdate(roomId);
     systemLog(`${side} 팀으로 입장했습니다.`);
 }
+
+// 창을 닫을 때 인원수 줄이기 (방 폭파 예비 로직)
+window.onbeforeunload = async function() {
+    if (currentRoomId) {
+        const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+        const roomSnap = await window.dbUtils.getDoc(roomRef);
+        if (roomSnap.exists()) {
+            const newCount = (roomSnap.data().playersCount || 1) - 1;
+            if (newCount <= 0) {
+                await window.dbUtils.deleteDoc(roomRef); // 0명이면 방 삭제
+            } else {
+                await window.dbUtils.updateDoc(roomRef, { playersCount: newCount });
+            }
+        }
+    }
+};
 
 // 4. 다이스 굴리기 (DB 업데이트)
 async function rollDice(side) {
@@ -69,7 +96,7 @@ async function rollDice(side) {
     });
 }
 
-// 5. 실시간 데이터 동기화 (핵심)
+// 실시간 업데이트에서 채팅 가져오기
 function startRealtimeUpdate(roomId) {
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
 
@@ -106,19 +133,44 @@ function startRealtimeUpdate(roomId) {
         
         // 라운드 표시
         document.getElementById('round-display').innerText = `ROUND ${data.currentRound} / 5`;
+        // 채팅 메시지 동기화
+        if (data.messages) {
+            const chatBox = document.getElementById('chat-messages');
+            
+            // 현재 화면에 표시된 메시지 개수와 DB의 메시지 개수가 다를 때만 업데이트
+            if (chatBox.children.length !== data.messages.length) {
+                chatBox.innerHTML = ""; // 기존 내용을 비우고 새로 그림
+                data.messages.forEach(msg => {
+                    const log = document.createElement('div');
+                    log.className = "text-white py-1 border-b border-white/10";
+                    // 발신자 이름에 색상을 넣어 가독성을 높였습니다.
+                    log.innerHTML = `<span class="text-yellow-400 font-bold">${msg.sender}:</span> ${msg.text}`;
+                    chatBox.appendChild(log);
+                });
+                // 새 메시지가 오면 자동으로 스크롤을 맨 아래로 내림
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        }
     });
 }
 
 // 6. 채팅 전송
+// 채팅 보내기 (DB에 저장)
 async function sendChat() {
     const input = document.getElementById('chat-input');
-    if (!input.value) return;
+    if (!input.value || !currentRoomId) return;
 
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
-    const newMessage = `${myProfile.name}: ${input.value}`;
+    
+    // Firestore의 arrayUnion을 사용하여 메시지 추가
+    await window.dbUtils.updateDoc(roomRef, {
+        messages: window.dbUtils.arrayUnion({
+            sender: myProfile.name,
+            text: input.value,
+            timestamp: new Date().getTime()
+        })
+    });
 
-    // 실제로는 arrayUnion을 써야 하지만, 간단하게 구현 위해 텍스트 로그로 대체
-    systemLog(newMessage);
     input.value = "";
 }
 
