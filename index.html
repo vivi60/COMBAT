@@ -81,8 +81,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+    import { getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc, collection } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     const firebaseConfig = {
         apiKey: "AIzaSyC_J9Crb7nvK1S23ll3n6Dih-SavqI8mEM",
         authDomain: "combat-e82f9.firebaseapp.com",
@@ -98,7 +97,7 @@
 
     // game.js에서 사용할 수 있도록 전역 윈도우 객체에 주입
     window.db = db;
-    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc };
+    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection }; // collection 추가
 
     // 주입이 완료된 후 game.js를 로드합니다.
     const script = document.createElement('script');

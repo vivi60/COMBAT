@@ -150,6 +150,47 @@ function initSelection() {
     grid.appendChild(adminBtn);
 }
 
+// Firestore에서 생성된 방 목록을 실시간으로 가져오는 함수
+function listenToRoomList() {
+    // 'rooms' 컬렉션 전체를 감시합니다.
+    const roomsCollection = window.dbUtils.collection(window.db, "rooms");
+
+    window.dbUtils.onSnapshot(roomsCollection, (snapshot) => {
+        const roomListDiv = document.getElementById('room-list');
+        roomListDiv.innerHTML = ""; // 기존 목록 초기화
+
+        if (snapshot.empty) {
+            roomListDiv.innerHTML = '<p class="text-center text-gray-400">생성된 방이 없습니다.</p>';
+            return;
+        }
+
+        snapshot.forEach((doc) => {
+            const roomData = doc.data();
+            const roomId = doc.id;
+
+            // 방 정보를 표시할 HTML 엘리먼트 생성
+            const roomItem = document.createElement('div');
+            roomItem.className = "flex justify-between items-center bg-gray-700 p-3 mb-2 rounded hover:bg-gray-600 transition";
+            roomItem.innerHTML = `
+                <div>
+                    <span class="font-bold text-yellow-400">[${roomData.roomType || '1vs1'}]</span>
+                    <span class="ml-2">${roomId}</span>
+                </div>
+                <button onclick="joinRoom('${roomId}', 'right')" class="bg-green-600 px-3 py-1 rounded text-sm">입장하기</button>
+            `;
+            roomListDiv.appendChild(roomItem);
+        });
+    });
+}
+
+// 페이지가 로드될 때 방 목록 감시 시작
+// 기존 window.onload 에 추가하거나 별도로 실행
+const originalOnload = window.onload;
+window.onload = function() {
+    if(originalOnload) originalOnload();
+    listenToRoomList();
+};
+
 // 페이지 로드 시 실행
 window.onload = initSelection;
 
