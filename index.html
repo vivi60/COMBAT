@@ -6,12 +6,128 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-[#1c1c1b] text-white font-sans">
-
-    <div id="character-selection" class="flex flex-col items-center justify-center min-h-screen">
-        <h1 class="text-4xl mb-8 font-bold">캐릭터를 선택하세요</h1>
-        <div id="char-grid" class="grid grid-cols-6 gap-4 p-4 max-w-4xl">
+<body class="bg-[#57825a] text-white font-sans"> <div id="character-selection" class="flex flex-col items-center py-10 min-h-screen">
+        <h1 class="text-4xl mb-10 font-bold drop-shadow-lg">유포리아 캐릭터 선택</h1>
+        
+        <div class="grid grid-cols-4 md:grid-cols-7 gap-6 px-4 max-w-6xl">
+            <div class="char-selector" onclick="selectCharacter('다이애나 닉스', false)">
+                <img src="image/다이애나1.png" alt="char1">
+                <p>다이애나 닉스</p>
             </div>
+            <div class="char-selector" onclick="selectCharacter('레오 휘틀리', false)">
+                <img src="image/레오2.png" alt="char2">
+                <p>레오 휘틀리</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('로리언 페인', false)">
+                <img src="image/로리언3.png" alt="char3">
+                <p>로리언 페인</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('로즈메리 아든', false)">
+                <img src="image/로즈메리4.png" alt="char4">
+                <p>로즈메리 아든</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('르네 망다랭', false)">
+                <img src="image/르네5.png" alt="char5">
+                <p>르네 망다랭</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('리오 휘틀리', false)">
+                <img src="image/리오6.png" alt="char6">
+                <p>리오 휘틀리</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('리자이나 레이시', false)">
+                <img src="image/리자이나7.png" alt="char7">
+                <p>리자이나 레이시</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('미셸 치드', false)">
+                <img src="image/미셸8.png" alt="char8">
+                <p>미셸 치드</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('베르테인 리오베', false)">
+                <img src="image/베르테인9.png" alt="char9">
+                <p>베르테인 리오베</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('소냐 하인즈', false)">
+                <img src="image/소냐10.png" alt="char10">
+                <p>소냐 하인즈10</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('시이나 콜', false)">
+                <img src="image/시이나11.png" alt="char11">
+                <p>시이나 콜</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('알렉시스 체이서', false)">
+                <img src="image/알렉시스12.png" alt="char12">
+                <p>알렉시스 체이서</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('에버렛 클레르발', false)">
+                <img src="image/에버렛13.png" alt="char13">
+                <p>에버렛 클레르발</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('에보니 미뉴에트', false)">
+                <img src="image/에보니14.png" alt="char14">
+                <p>에보니 미뉴에트</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('오웬 레딩턴', false)">
+                <img src="image/오웬15.png" alt="char15">
+                <p>오웬 레딩턴</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('우페 와이어트', false)">
+                <img src="image/우페16.png" alt="char16">
+                <p>우페 와이어트</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('유펠리아 리오베', false)">
+                <img src="image/유펠리아17.png" alt="char17">
+                <p>유펠리아 리오베</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('이안 트윈로우', false)">
+                <img src="image/이안18.png" alt="char18">
+                <p>이안 트윈로우</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('조이 비어', false)">
+                <img src="image/조이19.png" alt="char19">
+                <p>조이 비어</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('지오바나 휘태커', false)">
+                <img src="image/지오바나20.png" alt="char20">
+                <p>지오바나 휘태커</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('체스터 헤이즈', false)">
+                <img src="image/체스터21.png" alt="char21">
+                <p>체스터 헤이즈</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('카르멘 안토르맨', false)">
+                <img src="image/카르멘22.png" alt="char22">
+                <p>카르멘 안토르맨</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('카산드라 카스피튜디', false)">
+                <img src="image/카산드라23.png" alt="char23">
+                <p>카산드라 카스피튜디</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('카터 프랫', false)">
+                <img src="image/카터24.png" alt="char24">
+                <p>카터 프랫</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('트레이시 헤일', false)">
+                <img src="image/트레이시25.png" alt="char25">
+                <p>트레이시 헤일</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('페레그린 포크너', false)">
+                <img src="image/페레그린26.png" alt="char26">
+                <p>페레그린 포크너</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('하르샤 첼마베트', false)">
+                <img src="image/하르샤27.png" alt="char27">
+                <p>하르샤 첼마베트</p>
+            </div>
+            <div class="char-selector" onclick="selectCharacter('히스페리아 다이앤', false)">
+                <img src="image/히스페리아28.png" alt="char28">
+                <p>히스페리아 다이앤</p>
+            </div>
+        </div>
+
+        <button onclick="selectCharacter('관리자', true)" 
+            class="fixed bottom-1 left-1 w-2 h-2 bg-white/5 border-none cursor-default hover:bg-white/10 transition-colors" 
+            title="system">
+        </button>
     </div>
 
     <div id="game-lobby" class="hidden flex flex-col items-center justify-center min-h-screen">

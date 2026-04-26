@@ -228,22 +228,6 @@ async function sendChat() {
 }
 
 // [10] 초기화 및 리스트 로드
-function initSelection() {
-    const grid = document.getElementById('char-grid');
-    if(!grid) return;
-    for(let i=1; i<=28; i++) {
-        const btn = document.createElement('div');
-        btn.className = "character-card p-4 bg-gray-800 rounded text-center";
-        btn.innerText = `캐릭터 ${i}`;
-        btn.onclick = () => selectCharacter(`캐릭터 ${i}`, false);
-        grid.appendChild(btn);
-    }
-    const adminBtn = document.createElement('div');
-    adminBtn.className = "character-card p-4 bg-red-900 rounded text-center font-bold col-span-2";
-    adminBtn.innerText = `관리자 (ADMIN)`;
-    adminBtn.onclick = () => selectCharacter("관리자", true);
-    grid.appendChild(adminBtn);
-}
 
 function listenToRoomList() {
     const roomsCollection = window.dbUtils.collection(window.db, "rooms");
@@ -268,7 +252,6 @@ window.onbeforeunload = function() {
 };
 
 function init() {
-    initSelection();
     listenToRoomList();
 }
 

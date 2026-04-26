@@ -41,3 +41,46 @@
     border-color: #E7E7E7;
     background: rgba(255,255,255,0.1);
 }
+
+/* 배경색 전체 적용 */
+body {
+    background-color: #57825a !important;
+}
+
+/* 캐릭터 카드 스타일 */
+.char-selector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: transform 0.2s, filter 0.2s;
+}
+
+/* 캐릭터 이미지 스타일 */
+.char-selector img {
+    width: 100px;
+    height: 120px;
+    object-fit: cover; /* 이미지 비율 유지하며 채우기 */
+    border-radius: 8px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 캐릭터 이름 스타일 */
+.char-selector p {
+    margin-top: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    color: #f0f0f0;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+/* 마우스 올렸을 때 효과 */
+.char-selector:hover {
+    transform: translateY(-5px);
+}
+
+.char-selector:hover img {
+    border-color: #ffffff;
+    filter: brightness(1.1);
+}
