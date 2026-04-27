@@ -36,33 +36,52 @@ async function createRoom(type, title) {
         playersCount: 0, 
         currentRound: 1,
         isDetermined: false,
+        ready_left: false,
+        ready_right: false,
         messages: []
     };
 
     await window.dbUtils.setDoc(roomRef, initialData);
-    joinRoom(newRoomId, "left");
+    // 수정 후 (방 생성 후 바로 입장 함수 호출)
+     joinRoom(newRoomId, "left");
 }
 
 // [4] 방 입장 시 닉네임 저장 수정
 async function joinRoom(roomId, side) {
-    myProfile.side = side;
     currentRoomId = roomId;
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
-    
-    const updateData = {
-        messages: window.dbUtils.arrayUnion({
-            sender: "시스템",
-            text: `${myProfile.name} 님이 입장했습니다.`,
-            timestamp: new Date().getTime()
-        })
-    };
-    // 이름과 이미지 번호 정보를 함께 서버에 저장합니다.
-    updateData[`name_${side}`] = myProfile.charId; 
+    let updateData = {};
 
-    await window.dbUtils.updateDoc(roomRef, updateData);
-    
-    if (document.getElementById('user-profile-display')) document.getElementById('user-profile-display').classList.add('hidden');
+    try {
+        if (myProfile.type === "ADMIN" || side === "admin") {
+            updateData = {
+                messages: window.dbUtils.arrayUnion({
+                    sender: "시스템",
+                    text: `관리자 님이 입장했습니다.`,
+                    timestamp: new Date().getTime()
+                })
+            };
+            myProfile.side = "admin";
+        } else {
+            myProfile.side = side;
+            updateData = {
+                playersCount: window.dbUtils.increment(1),
+                messages: window.dbUtils.arrayUnion({
+                    sender: "시스템",
+                    text: `${myProfile.name} 님이 ${side === 'left' ? '왼쪽' : '오른쪽'} 팀으로 입장했습니다.`,
+                    timestamp: new Date().getTime()
+                })
+            };
+            updateData[`name_${side}`] = myProfile.charId;
+        }
+        await window.dbUtils.updateDoc(roomRef, updateData);
+    } catch (e) {
+        console.error("joinRoom Firestore 오류:", e);
+    }
+
+    // UI 전환은 Firestore 오류와 무관하게 항상 실행
     document.getElementById('game-lobby').classList.add('hidden');
+    document.getElementById('user-profile-display').classList.add('hidden');
     document.getElementById('battle-screen').classList.remove('hidden');
     startRealtimeUpdate(roomId);
 }
@@ -84,6 +103,18 @@ async function rollDice(side) {
     setTimeout(async () => {
         await window.dbUtils.updateDoc(roomRef, { [`dice_${side}`]: result });
     }, 500);
+}
+
+
+// [레디] 플레이어 레디 토글
+async function toggleReady(side) {
+    if (myProfile.side !== side) return;
+    if (!currentRoomId) return;
+    const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    const snap = await window.dbUtils.getDoc(roomRef);
+    if (!snap.exists()) return;
+    const current = snap.data()[`ready_${side}`] || false;
+    await window.dbUtils.updateDoc(roomRef, { [`ready_${side}`]: !current });
 }
 
 // [6] 선공 판정
@@ -136,7 +167,41 @@ function startRealtimeUpdate(roomId) {
                 dBox.innerText = "?";
             }
         });
+// 양쪽 팀이 모두 들어왔는지 확인
+    const bothJoined = data.name_left && data.name_right;
+    const readyOverlay = document.getElementById('ready-overlay');
 
+    // 레디 버튼: 본인 팀 버튼만 표시
+    ['left', 'right'].forEach(s => {
+        const btn = document.getElementById(`ready-btn-${s}`);
+        if (!btn) return;
+        if (bothJoined && data.status === "waiting" && myProfile.side === s) {
+            btn.classList.remove('hidden');
+            const isReady = data[`ready_${s}`];
+            btn.textContent = isReady ? '✔ 레디 완료' : '○ 레디';
+            btn.style.borderColor = isReady ? '#57825a' : '';
+            btn.style.color = isReady ? '#89b38c' : '';
+        } else {
+            btn.classList.add('hidden');
+        }
+    });
+
+    // 둘 다 레디됐을 때 오버레이 표시
+    const bothReady = bothJoined && data.ready_left && data.ready_right;
+    if (bothReady && data.status === "waiting") {
+        if (readyOverlay) readyOverlay.classList.remove('hidden');
+        // 관리자에게만 전투 시작 버튼 표시
+        const startBtn = document.getElementById('start-game-btn');
+        if (startBtn) {
+            if (myProfile.type === "ADMIN") {
+                startBtn.classList.remove('hidden');
+            } else {
+                startBtn.classList.add('hidden');
+            }
+        }
+    } else {
+        if (readyOverlay) readyOverlay.classList.add('hidden');
+    }
         if (data.dice_left > 0 && data.dice_right > 0) {
             const isLeftWinner = data.dice_left >= data.dice_right;
             if ((isLeftWinner && myProfile.side === 'left') || (!isLeftWinner && myProfile.side === 'right')) {
@@ -187,15 +252,22 @@ function listenToRoomList() {
         const roomListDiv = document.getElementById('room-list');
         if(!roomListDiv) return;
         roomListDiv.innerHTML = snapshot.empty ? '<p class="text-center text-gray-400">생성된 방이 없습니다.</p>' : "";
+        
         snapshot.forEach((doc) => {
             const roomData = doc.data();
+            const roomId = doc.id; // 방 ID (문서 이름)
             const roomItem = document.createElement('div');
-            roomItem.className = "flex justify-between items-center bg-gray-700/50 p-3 mb-2 rounded hover:bg-gray-600 transition";
-            const displayName = roomData.roomName ? roomData.roomName : doc.id;
+            roomItem.className = "flex justify-between items-center bg-gray-700 p-3 mb-2 rounded hover:bg-gray-600 transition";
+            
+            // 클릭 시점의 myProfile.type을 읽도록 이벤트 리스너로 처리
             roomItem.innerHTML = `
-                <div><span class="text-yellow-400 font-bold">[${roomData.roomType}]</span> ${displayName}</div>
-                <button onclick="joinRoom('${doc.id}', 'right')" class="btn-green px-3 py-1 rounded text-sm font-bold">입장</button>
+                <div><span class="text-yellow-400 font-bold">[${roomData.roomType}]</span> ${roomData.roomName || roomId}</div>
+                <button class="join-btn bg-green-600 px-3 py-1 rounded text-sm hover:bg-green-500" data-room-id="${roomId}">입장</button>
             `;
+            roomItem.querySelector('.join-btn').addEventListener('click', () => {
+                const side = myProfile.type === "ADMIN" ? "admin" : "right";
+                joinRoom(roomId, side);
+            });
             roomListDiv.appendChild(roomItem);
         });
     });
@@ -220,6 +292,8 @@ window.backToCharacterSelection = backToCharacterSelection;
 window.openCreateModal = openCreateModal;
 window.closeCreateModal = closeCreateModal;
 window.confirmCreateRoom = confirmCreateRoom;
+window.startGame = startGame;
+window.toggleReady = toggleReady;
 
 // 누락된 함수 추가
 function openCreateModal() { document.getElementById('create-room-modal').classList.remove('hidden'); }
@@ -269,3 +343,21 @@ async function sendChat() {
     await window.dbUtils.updateDoc(roomRef, { messages: window.dbUtils.arrayUnion({ sender: myProfile.name, text: input.value, timestamp: new Date().getTime() }) });
     input.value = "";
 }
+
+// 관리자가 전투 시작을 눌렀을 때 실행되는 함수
+async function startGame() {
+    if (!currentRoomId) return;
+    const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    
+    await window.dbUtils.updateDoc(roomRef, {
+        status: "fighting",
+        ready_left: false,
+        ready_right: false,
+        messages: window.dbUtils.arrayUnion({
+            sender: "시스템",
+            text: "전투가 시작되었습니다!",
+            timestamp: new Date().getTime()
+        })
+    });
+}
+

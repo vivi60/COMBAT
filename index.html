@@ -197,6 +197,9 @@
                 <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
                     <div id="hp-left" class="bg-red-500 h-full w-full"></div>
                 </div>
+                <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-3 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
+                    ○ 레디
+                </button>
                 <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-left">
                     <button class="bg-red-600 px-4 py-2 rounded" onclick="selectAction('공격')">공격</button>
                     <button class="bg-blue-600 px-4 py-2 rounded" onclick="selectAction('회피')">회피</button>
@@ -216,6 +219,9 @@
                 <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
                     <div id="hp-right" class="bg-red-500 h-full w-full"></div>
                 </div>
+                <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-3 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
+                    ○ 레디
+                </button>
                 <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-right">
                     <button class="bg-red-600 px-4 py-2 rounded">공격</button>
                     <button class="bg-blue-600 px-4 py-2 rounded">회피</button>
@@ -234,10 +240,10 @@
         </div>
     </div>
 
-    <div id="ready-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden">
+    <div id="ready-overlay" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden">
         <div class="bg-gray-900 p-10 rounded-lg text-center border border-gray-700">
             <h3 class="text-2xl mb-6">모든 플레이어가 준비되었습니다.</h3>
-            <button id="start-game-btn" class="bg-red-600 px-10 py-3 text-xl font-bold hidden">전투 시작 (관리자)</button>
+            <button id="start-game-btn" onclick="startGame()" class="bg-red-600 px-10 py-3 text-xl font-bold hidden">⚔️ 전투 시작 (관리자)</button>
             <p id="waiting-msg" class="text-gray-400">관리자의 시작을 기다리는 중...</p>
         </div>
     </div>
@@ -247,7 +253,7 @@
         initializeApp 
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { 
-        getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc, collection, deleteDoc, arrayUnion 
+        getFirestore, doc, onSnapshot, updateDoc, setDoc, getDoc, collection, deleteDoc, arrayUnion, increment
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -265,7 +271,7 @@
 
     // 전역 객체 주입
     window.db = getFirestore(initializeApp(firebaseConfig));
-    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection, deleteDoc, arrayUnion };
+    window.dbUtils = { doc, onSnapshot, updateDoc, setDoc, getDoc, collection, deleteDoc, arrayUnion, increment };
 
     // game.js를 여기서 한 번만 로드합니다.
     const script = document.createElement('script');
