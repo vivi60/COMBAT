@@ -424,6 +424,9 @@ async function resolveCombat(data, roomRef) {
 
     resultLines.forEach(l => logs.push(l));
 
+    // 라운드 번호를 motions에 메타로 포함 (중복 재생 방지용 키 차별화)
+    motions.push({ _round: round, _ts: ts });
+
     // ── hp 원래 left/right 로 복원 ──
     let hp_left  = isLeftFirst ? hp_first  : hp_second;
     let hp_right = isLeftFirst ? hp_second : hp_first;
@@ -572,6 +575,26 @@ function startRealtimeUpdate(roomId) {
             }
         }
 
+        // ── 선공 배지 + 다이스 숨김 ──
+        ['left', 'right'].forEach(s => {
+            const badge = document.getElementById(`first-badge-${s}`);
+            const diceEl = document.getElementById(`dice-${s}`);
+            if (!badge || !diceEl) return;
+            if (data.isDetermined && data.firstSide) {
+                // 다이스 숨기고 배지 표시
+                diceEl.style.display = 'none';
+                if (data.firstSide === s) {
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
+            } else {
+                // 판정 전: 다이스 보이고 배지 숨김
+                diceEl.style.display = '';
+                badge.classList.add('hidden');
+            }
+        });
+
         // ── 행동 버튼 표시 로직 ──
         // fighting 상태 + 선공 판정 완료 + 게임 미종료 상태일 때만
         if (data.status === 'fighting' && data.isDetermined) {
@@ -629,12 +652,18 @@ function startRealtimeUpdate(roomId) {
         }
 
         // ── 모션 재생 (lastMotions 변경 감지) ──
-        if (data.lastMotions && data.lastMotions.length > 0) {
-            const motionKey = JSON.stringify(data.lastMotions);
-            if (motionKey !== window._lastMotionKey) {
-                window._lastMotionKey = motionKey;
-                playMotions(data.lastMotions);
+        // status가 fighting/ended이고, 실제 전투 결과로 생긴 motions일 때만 재생
+        if (data.status === 'fighting' || data.status === 'ended') {
+            if (data.lastMotions && data.lastMotions.length > 0) {
+                const motionKey = JSON.stringify(data.lastMotions) + '_' + (data.currentRound || 1);
+                if (motionKey !== window._lastMotionKey) {
+                    window._lastMotionKey = motionKey;
+                    playMotions(data.lastMotions);
+                }
             }
+        } else {
+            // waiting/기타 상태에서는 키 초기화 (다음 게임 재생 보장)
+            window._lastMotionKey = null;
         }
 
         // HP 바 + 숫자
@@ -816,6 +845,15 @@ async function sendChat() {
 async function startGame() {
     if (!currentRoomId) return;
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    // 클라이언트측 모션 키 초기화
+    window._lastMotionKey = null;
+    // 다이스 다시 보이게
+    ['left', 'right'].forEach(s => {
+        const diceEl = document.getElementById(`dice-${s}`);
+        if (diceEl) diceEl.style.display = '';
+        const badge = document.getElementById(`first-badge-${s}`);
+        if (badge) badge.classList.add('hidden');
+    });
     await window.dbUtils.updateDoc(roomRef, {
         status: "fighting",
         ready_left: false,
@@ -825,6 +863,7 @@ async function startGame() {
         action_left: "",
         action_right: "",
         isDetermined: false,
+        firstSide: "",
         hp_left: 100,
         hp_right: 100,
         currentRound: 1,
@@ -855,17 +894,15 @@ function showPopup(side, text, type) {
 }
 
 function playMotions(motions) {
-    // 모션을 순서대로 살짝 딜레이 두고 실행
-    motions.forEach((m, i) => {
+    // _round 같은 메타 항목 제거
+    const real = motions.filter(m => m.side);
+    real.forEach((m, i) => {
         setTimeout(() => {
             const imgEl = document.getElementById(`img-${m.side}`);
             if (imgEl && m.anim) {
-                // 기존 애니메이션 클래스 초기화
                 imgEl.classList.remove('anim-attack', 'anim-hit', 'anim-dodge', 'anim-defend', 'anim-flee');
-                // reflow trick: 애니메이션 재시작
                 void imgEl.offsetWidth;
                 imgEl.classList.add(`anim-${m.anim}`);
-                // 애니메이션 끝나면 클래스 제거
                 imgEl.addEventListener('animationend', () => {
                     imgEl.classList.remove(`anim-${m.anim}`);
                 }, { once: true });

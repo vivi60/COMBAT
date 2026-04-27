@@ -183,14 +183,21 @@
         <button onclick="backToLobby()" class="absolute top-4 left-4 bg-red-900/50 hover:bg-red-800 px-4 py-2 rounded text-sm border border-red-700 transition z-10">
         ◀ 기권하고 로비로
         </button>
-        <div class="text-center mb-4">
+        <div class="text-center mb-2">
             <span id="round-display" class="text-2xl text-yellow-400 font-bold">ROUND 1 / 5</span>
         </div>
 
-        <div class="flex justify-between items-center flex-grow px-20">
+        <!-- 캐릭터 영역 (고정 높이, 버튼 없음) -->
+        <div class="flex justify-between items-start px-20 mb-2" style="min-height:0;">
+
+            <!-- 왼쪽 -->
             <div id="team-left" class="flex flex-col items-center">
-                <div class="dice-box mb-4" id="dice-left" onclick="rollDice('left')">?</div>
-                <div id="name-left" class="mb-2 text-xl font-bold text-blue-400">대기 중...</div>
+                <!-- 다이스 + 선공 배지 -->
+                <div class="relative mb-2">
+                    <div class="dice-box" id="dice-left" onclick="rollDice('left')">?</div>
+                    <div id="first-badge-left" class="hidden absolute -top-3 -right-3 bg-yellow-400 text-black text-xs font-black px-1.5 py-0.5 rounded-full shadow-lg">선공</div>
+                </div>
+                <div id="name-left" class="mb-1 text-xl font-bold text-blue-400">대기 중...</div>
                 <div class="relative">
                     <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
                         <span class="text-gray-500">No Image</span>
@@ -203,22 +210,20 @@
                     </div>
                     <span id="hp-left-text" class="text-sm font-bold text-red-300 whitespace-nowrap">100</span>
                 </div>
-                <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-3 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
+                <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-2 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
                     ○ 레디
                 </button>
-                <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-left">
-                    <button class="bg-red-600 px-4 py-2 rounded" onclick="selectAction('공격')">공격</button>
-                    <button class="bg-blue-600 px-4 py-2 rounded" onclick="selectAction('회피')">회피</button>
-                    <button class="bg-green-600 px-4 py-2 rounded" onclick="selectAction('방어')">방어</button>
-                    <button class="bg-gray-600 px-4 py-2 rounded" onclick="selectAction('도주')">도주</button>
-                </div>
             </div>
 
-            <div class="text-5xl font-black italic text-gray-500">VS</div>
+            <div class="text-5xl font-black italic text-gray-500 mt-24">VS</div>
 
+            <!-- 오른쪽 -->
             <div id="team-right" class="flex flex-col items-center">
-                <div class="dice-box mb-4" id="dice-right" onclick="rollDice('right')">?</div>
-                <div id="name-right" class="mb-2 text-xl font-bold text-red-400">대기 중...</div>
+                <div class="relative mb-2">
+                    <div class="dice-box" id="dice-right" onclick="rollDice('right')">?</div>
+                    <div id="first-badge-right" class="hidden absolute -top-3 -right-3 bg-yellow-400 text-black text-xs font-black px-1.5 py-0.5 rounded-full shadow-lg">선공</div>
+                </div>
+                <div id="name-right" class="mb-1 text-xl font-bold text-red-400">대기 중...</div>
                 <div class="relative">
                     <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right">
                         <span class="text-gray-500">No Image</span>
@@ -231,19 +236,31 @@
                     </div>
                     <span id="hp-right-text" class="text-sm font-bold text-red-300 whitespace-nowrap">100</span>
                 </div>
-                <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-3 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
+                <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-2 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
                     ○ 레디
                 </button>
-                <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-right">
-                    <button class="bg-red-600 px-4 py-2 rounded" onclick="selectAction('공격')">공격</button>
-                    <button class="bg-blue-600 px-4 py-2 rounded" onclick="selectAction('회피')">회피</button>
-                    <button class="bg-green-600 px-4 py-2 rounded" onclick="selectAction('방어')">방어</button>
-                    <button class="bg-gray-600 px-4 py-2 rounded" onclick="selectAction('도주')">도주</button>
-                </div>
             </div>
         </div>
 
-        <div id="chat-area" class="h-40 bg-black/50 border-t border-gray-600 p-2 flex flex-col">
+        <!-- 행동 버튼 (화면 중앙 하단 고정 영역) -->
+        <div class="flex justify-around px-20 mb-2">
+            <div class="action-buttons grid grid-cols-2 gap-2 hidden" id="btns-left">
+                <button class="bg-red-600 px-6 py-2 rounded font-bold" onclick="selectAction('공격')">공격</button>
+                <button class="bg-blue-600 px-6 py-2 rounded font-bold" onclick="selectAction('회피')">회피</button>
+                <button class="bg-green-600 px-6 py-2 rounded font-bold" onclick="selectAction('방어')">방어</button>
+                <button class="bg-gray-600 px-6 py-2 rounded font-bold" onclick="selectAction('도주')">도주</button>
+            </div>
+            <div class="w-20"></div><!-- VS 자리 spacer -->
+            <div class="action-buttons grid grid-cols-2 gap-2 hidden" id="btns-right">
+                <button class="bg-red-600 px-6 py-2 rounded font-bold" onclick="selectAction('공격')">공격</button>
+                <button class="bg-blue-600 px-6 py-2 rounded font-bold" onclick="selectAction('회피')">회피</button>
+                <button class="bg-green-600 px-6 py-2 rounded font-bold" onclick="selectAction('방어')">방어</button>
+                <button class="bg-gray-600 px-6 py-2 rounded font-bold" onclick="selectAction('도주')">도주</button>
+            </div>
+        </div>
+
+        <!-- 채팅창 (더 크게) -->
+        <div id="chat-area" class="flex-1 bg-black/50 border-t border-gray-600 p-2 flex flex-col" style="min-height: 200px; max-height: 280px;">
             <div id="chat-messages" class="flex-grow overflow-y-auto text-sm space-y-1 mb-2"></div>
             <div class="flex gap-2">
                 <input type="text" id="chat-input" class="flex-grow bg-gray-800 border-none px-3 py-1 text-sm outline-none" placeholder="메시지를 입력하세요...">
