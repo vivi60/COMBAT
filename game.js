@@ -38,6 +38,8 @@ async function createRoom(type, title) {
         isDetermined: false,
         ready_left: false,
         ready_right: false,
+        name_left: "",
+        name_right: "",
         messages: []
     };
 
@@ -270,15 +272,16 @@ function listenToRoomList() {
                     joinRoom(roomId, "admin");
                     return;
                 }
-                // name_left가 비어있으면 left, 아니면 right
                 try {
                     const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", roomId));
                     if (!snap.exists()) return;
                     const d = snap.data();
-                    const side = (!d.name_left || d.name_left === "") ? "left" : "right";
+                    const leftTaken = typeof d.name_left === "string" && d.name_left.trim() !== "";
+                    const side = leftTaken ? "right" : "left";
                     joinRoom(roomId, side);
                 } catch(e) {
-                    joinRoom(roomId, "right");
+                    console.error("자리 확인 오류:", e);
+                    joinRoom(roomId, "left");
                 }
             });
             roomListDiv.appendChild(roomItem);
