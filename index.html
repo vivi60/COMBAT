@@ -191,8 +191,11 @@
             <div id="team-left" class="flex flex-col items-center">
                 <div class="dice-box mb-4" id="dice-left" onclick="rollDice('left')">?</div>
                 <div id="name-left" class="mb-2 text-xl font-bold text-blue-400">대기 중...</div>
-                <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
-                <span class="text-gray-500">No Image</span>
+                <div class="relative">
+                    <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
+                        <span class="text-gray-500">No Image</span>
+                    </div>
+                    <div id="popup-left" class="absolute inset-0 pointer-events-none"></div>
                 </div>
                 <div class="flex items-center gap-2 w-full mt-2">
                     <div class="hp-bar flex-1 bg-red-900 h-4 rounded overflow-hidden">
@@ -216,8 +219,11 @@
             <div id="team-right" class="flex flex-col items-center">
                 <div class="dice-box mb-4" id="dice-right" onclick="rollDice('right')">?</div>
                 <div id="name-right" class="mb-2 text-xl font-bold text-red-400">대기 중...</div>
-                <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right">
-                <span class="text-gray-500">No Image</span>
+                <div class="relative">
+                    <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right">
+                        <span class="text-gray-500">No Image</span>
+                    </div>
+                    <div id="popup-right" class="absolute inset-0 pointer-events-none"></div>
                 </div>
                 <div class="flex items-center gap-2 w-full mt-2">
                     <div class="hp-bar flex-1 bg-red-900 h-4 rounded overflow-hidden">

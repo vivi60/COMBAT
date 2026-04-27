@@ -246,150 +246,226 @@ async function selectAction(action) {
 // [전투] 결과 계산 핵심 로직
 // ─────────────────────────────────────────
 async function resolveCombat(data, roomRef) {
-    const aL = data.action_left;
-    const aR = data.action_right;
+    const firstSide = data.firstSide || 'left'; // 선공 side
+    const isLeftFirst = firstSide === 'left';
+
+    // 선공/후공 행동과 이름 정리
+    const aFirst  = isLeftFirst ? data.action_left  : data.action_right;
+    const aSecond = isLeftFirst ? data.action_right : data.action_left;
+    const nameFirst  = (isLeftFirst ? data.name_left  : data.name_right).split('|')[0];
+    const nameSecond = (isLeftFirst ? data.name_right : data.name_left).split('|')[0];
+    const sideFirst  = firstSide;
+    const sideSecond = firstSide === 'left' ? 'right' : 'left';
+
     const round = data.currentRound || 1;
+    let hp_first  = isLeftFirst ? data.hp_left  : data.hp_right;
+    let hp_second = isLeftFirst ? data.hp_right : data.hp_left;
 
-    let hp_left  = data.hp_left;
-    let hp_right = data.hp_right;
+    // 로그 라인들
     const logs = [];
+    // 모션 이벤트: { side: 'left'|'right', anim: 'attack'|'hit'|'dodge'|'defend'|'flee', popup: '텍스트', popupType: 'damage'|'miss'|... }
+    const motions = [];
 
+    const ts = new Date().getTime();
+
+    // ── 행동 아이콘 ──
+    const icon = { '공격': '⚔️', '방어': '🛡️', '회피': '💨', '도주': '🏃' };
+
+    // ── 행동 줄 출력 (선공 먼저) ──
+    logs.push(`${icon[aFirst] || ''} ${nameFirst}의 행동: ${aFirst}`);
+    logs.push(`${icon[aSecond] || ''} ${nameSecond}의 행동: ${aSecond}`);
+
+    // ── 결과 계산 (선공 우선 적용) ──
+    let resultLines = [];
+
+    // [공격 vs 공격] — 선공이 먼저 데미지, 후공 HP 0이면 후공 반격 없음
+    if (aFirst === '공격' && aSecond === '공격') {
+        const atkFirst = rollAttack();
+        hp_second = Math.max(0, hp_second - atkFirst);
+        motions.push({ side: sideFirst,  anim: 'attack' });
+        motions.push({ side: sideSecond, anim: 'hit', popup: `-${atkFirst}`, popupType: 'damage' });
+        resultLines.push(`결과: ${nameFirst} 공격 ${atkFirst} → ${nameSecond} -${atkFirst}HP`);
+
+        if (hp_second > 0) {
+            const atkSecond = rollAttack();
+            hp_first = Math.max(0, hp_first - atkSecond);
+            motions.push({ side: sideSecond, anim: 'attack' });
+            motions.push({ side: sideFirst,  anim: 'hit', popup: `-${atkSecond}`, popupType: 'damage' });
+            resultLines.push(`결과: ${nameSecond} 반격 ${atkSecond} → ${nameFirst} -${atkSecond}HP`);
+        } else {
+            resultLines.push(`결과: ${nameSecond} 쓰러져 반격 불가!`);
+        }
+    }
+
+    // [공격 vs 방어]
+    else if (aFirst === '공격' && aSecond === '방어') {
+        const atk = rollAttack();
+        const def = rollDefense();
+        const dmg = Math.max(0, atk - def);
+        hp_second = Math.max(0, hp_second - dmg);
+        motions.push({ side: sideFirst,  anim: 'attack' });
+        motions.push({ side: sideSecond, anim: 'defend',
+            popup: dmg > 0 ? `-${dmg}` : '막음!',
+            popupType: dmg > 0 ? 'damage' : 'defend' });
+        resultLines.push(dmg > 0
+            ? `결과: 공격 ${atk} - 방어 ${def} = ${dmg} 데미지 → ${nameSecond} -${dmg}HP`
+            : `결과: 공격 ${atk} - 방어 ${def} → 완전히 막아냈습니다!`);
+    }
+
+    // [방어 vs 공격]
+    else if (aFirst === '방어' && aSecond === '공격') {
+        const atk = rollAttack();
+        const def = rollDefense();
+        const dmg = Math.max(0, atk - def);
+        hp_first = Math.max(0, hp_first - dmg);
+        motions.push({ side: sideSecond, anim: 'attack' });
+        motions.push({ side: sideFirst,  anim: 'defend',
+            popup: dmg > 0 ? `-${dmg}` : '막음!',
+            popupType: dmg > 0 ? 'damage' : 'defend' });
+        resultLines.push(dmg > 0
+            ? `결과: 공격 ${atk} - 방어 ${def} = ${dmg} 데미지 → ${nameFirst} -${dmg}HP`
+            : `결과: 공격 ${atk} - 방어 ${def} → 완전히 막아냈습니다!`);
+    }
+
+    // [공격 vs 회피]
+    else if (aFirst === '공격' && aSecond === '회피') {
+        const atk = rollAttack();
+        const dodged = Math.random() < 0.5;
+        motions.push({ side: sideFirst,  anim: 'attack' });
+        motions.push({ side: sideSecond, anim: 'dodge',
+            popup: dodged ? '회피!' : '실패!',
+            popupType: dodged ? 'miss' : 'damage' });
+        if (dodged) {
+            resultLines.push(`결과: ${nameSecond} 회피 성공! (공격 ${atk} → 피해 없음)`);
+        } else {
+            hp_second = Math.max(0, hp_second - atk);
+            resultLines.push(`결과: ${nameSecond} 회피 실패! → -${atk}HP`);
+        }
+    }
+
+    // [회피 vs 공격]
+    else if (aFirst === '회피' && aSecond === '공격') {
+        const atk = rollAttack();
+        const dodged = Math.random() < 0.5;
+        motions.push({ side: sideSecond, anim: 'attack' });
+        motions.push({ side: sideFirst,  anim: 'dodge',
+            popup: dodged ? '회피!' : '실패!',
+            popupType: dodged ? 'miss' : 'damage' });
+        if (dodged) {
+            resultLines.push(`결과: ${nameFirst} 회피 성공! (공격 ${atk} → 피해 없음)`);
+        } else {
+            hp_first = Math.max(0, hp_first - atk);
+            resultLines.push(`결과: ${nameFirst} 회피 실패! → -${atk}HP`);
+        }
+    }
+
+    // [공격 vs 도주]
+    else if (aFirst === '공격' && aSecond === '도주') {
+        const atk = rollAttack();
+        const escaped = Math.random() < 0.5;
+        motions.push({ side: sideSecond, anim: 'flee',
+            popup: escaped ? '도주!' : '실패!',
+            popupType: escaped ? 'flee' : 'damage' });
+        if (escaped) {
+            hp_second = 0;
+            resultLines.push(`결과: ${nameSecond} 도주 성공! → 패배 처리`);
+        } else {
+            motions.push({ side: sideFirst, anim: 'attack' });
+            motions.push({ side: sideSecond, anim: 'hit', popup: `-${atk}`, popupType: 'damage' });
+            hp_second = Math.max(0, hp_second - atk);
+            resultLines.push(`결과: ${nameSecond} 도주 실패! → 공격 ${atk} 적중, -${atk}HP`);
+        }
+    }
+
+    // [도주 vs 공격]
+    else if (aFirst === '도주' && aSecond === '공격') {
+        const atk = rollAttack();
+        const escaped = Math.random() < 0.5;
+        motions.push({ side: sideFirst, anim: 'flee',
+            popup: escaped ? '도주!' : '실패!',
+            popupType: escaped ? 'flee' : 'damage' });
+        if (escaped) {
+            hp_first = 0;
+            resultLines.push(`결과: ${nameFirst} 도주 성공! → 패배 처리`);
+        } else {
+            motions.push({ side: sideSecond, anim: 'attack' });
+            motions.push({ side: sideFirst,  anim: 'hit', popup: `-${atk}`, popupType: 'damage' });
+            hp_first = Math.max(0, hp_first - atk);
+            resultLines.push(`결과: ${nameFirst} 도주 실패! → 공격 ${atk} 적중, -${atk}HP`);
+        }
+    }
+
+    // [도주 vs 도주]
+    else if (aFirst === '도주' && aSecond === '도주') {
+        const escF = Math.random() < 0.5;
+        const escS = Math.random() < 0.5;
+        motions.push({ side: sideFirst,  anim: 'flee', popup: escF ? '도주!' : '실패!', popupType: 'flee' });
+        motions.push({ side: sideSecond, anim: 'flee', popup: escS ? '도주!' : '실패!', popupType: 'flee' });
+        if (escF) hp_first = 0;
+        if (escS) hp_second = 0;
+        resultLines.push(`결과: ${nameFirst} 도주 ${escF ? '성공' : '실패'} / ${nameSecond} 도주 ${escS ? '성공' : '실패'}`);
+    }
+
+    // [그 외: 방어/회피/방어 조합]
+    else {
+        resultLines.push(`결과: 서로 맞붙지 않아 피해가 없습니다.`);
+    }
+
+    resultLines.forEach(l => logs.push(l));
+
+    // ── hp 원래 left/right 로 복원 ──
+    let hp_left  = isLeftFirst ? hp_first  : hp_second;
+    let hp_right = isLeftFirst ? hp_second : hp_first;
+
+    // ── 게임 종료 판정 ──
+    const newRound   = round + 1;
+    const isGameOver = hp_left <= 0 || hp_right <= 0 || round >= 5;
     const nameL = data.name_left.split('|')[0];
     const nameR = data.name_right.split('|')[0];
 
-    // ── 행동 쌍별 처리 ──
-    // 공격 vs 공격
-    if (aL === '공격' && aR === '공격') {
-        const atkL = rollAttack();
-        const atkR = rollAttack();
-        hp_right = Math.max(0, hp_right - atkL);
-        hp_left  = Math.max(0, hp_left  - atkR);
-        logs.push(`⚔️ 동시 공격! ${nameL}의 공격 ${atkL} / ${nameR}의 공격 ${atkR}`);
-        logs.push(`💥 ${nameR} -${atkL}HP / ${nameL} -${atkR}HP`);
-    }
-    // 공격 vs 방어
-    else if (aL === '공격' && aR === '방어') {
-        const atk = rollAttack();
-        const def = rollDefense();
-        const dmg = Math.max(0, atk - def);
-        hp_right = Math.max(0, hp_right - dmg);
-        logs.push(`⚔️ ${nameL} 공격(${atk}) vs 🛡️ ${nameR} 방어(${def})`);
-        logs.push(dmg > 0 ? `💥 ${nameR} -${dmg}HP` : `🛡️ ${nameR} 완전히 막아냈습니다!`);
-    }
-    // 방어 vs 공격
-    else if (aL === '방어' && aR === '공격') {
-        const atk = rollAttack();
-        const def = rollDefense();
-        const dmg = Math.max(0, atk - def);
-        hp_left = Math.max(0, hp_left - dmg);
-        logs.push(`⚔️ ${nameR} 공격(${atk}) vs 🛡️ ${nameL} 방어(${def})`);
-        logs.push(dmg > 0 ? `💥 ${nameL} -${dmg}HP` : `🛡️ ${nameL} 완전히 막아냈습니다!`);
-    }
-    // 공격 vs 회피
-    else if (aL === '공격' && aR === '회피') {
-        const atk = rollAttack();
-        const dodged = Math.random() < 0.5;
-        if (dodged) {
-            logs.push(`⚔️ ${nameL} 공격(${atk}) vs 💨 ${nameR} 회피 → 성공! 피해 없음`);
-        } else {
-            hp_right = Math.max(0, hp_right - atk);
-            logs.push(`⚔️ ${nameL} 공격(${atk}) vs 💨 ${nameR} 회피 → 실패! -${atk}HP`);
-        }
-    }
-    // 회피 vs 공격
-    else if (aL === '회피' && aR === '공격') {
-        const atk = rollAttack();
-        const dodged = Math.random() < 0.5;
-        if (dodged) {
-            logs.push(`💨 ${nameL} 회피 성공! vs ⚔️ ${nameR} 공격(${atk}) → 피해 없음`);
-        } else {
-            hp_left = Math.max(0, hp_left - atk);
-            logs.push(`💨 ${nameL} 회피 실패! vs ⚔️ ${nameR} 공격(${atk}) → -${atk}HP`);
-        }
-    }
-    // 공격 vs 도주
-    else if (aL === '공격' && aR === '도주') {
-        const atk = rollAttack();
-        const escaped = Math.random() < 0.5;
-        if (escaped) {
-            logs.push(`🏃 ${nameR} 도주 성공! → ${nameR} 패배 처리`);
-            hp_right = 0; // 도주 성공 = 패배
-        } else {
-            hp_right = Math.max(0, hp_right - atk);
-            logs.push(`🏃 ${nameR} 도주 실패! ⚔️ ${nameL} 공격(${atk}) → -${atk}HP`);
-        }
-    }
-    // 도주 vs 공격
-    else if (aL === '도주' && aR === '공격') {
-        const atk = rollAttack();
-        const escaped = Math.random() < 0.5;
-        if (escaped) {
-            logs.push(`🏃 ${nameL} 도주 성공! → ${nameL} 패배 처리`);
-            hp_left = 0;
-        } else {
-            hp_left = Math.max(0, hp_left - atk);
-            logs.push(`🏃 ${nameL} 도주 실패! ⚔️ ${nameR} 공격(${atk}) → -${atk}HP`);
-        }
-    }
-    // 도주 vs 도주 (둘 다 도주 시도)
-    else if (aL === '도주' && aR === '도주') {
-        const escL = Math.random() < 0.5;
-        const escR = Math.random() < 0.5;
-        logs.push(`🏃 ${nameL} 도주 ${escL ? '성공' : '실패'} / ${nameR} 도주 ${escR ? '성공' : '실패'}`);
-        if (escL) hp_left = 0;
-        if (escR) hp_right = 0;
-    }
-    // 그 외(방어vs방어, 방어vs회피, 회피vs방어, 회피vs회피 등) → 아무 일 없음
-    else {
-        logs.push(`🤝 ${nameL}(${aL}) vs ${nameR}(${aR}) — 서로 맞붙지 않아 피해가 없습니다.`);
-    }
-
-    // ── 라운드 종료 메시지 ──
-    const newRound = round + 1;
-    const isGameOver = hp_left <= 0 || hp_right <= 0 || round >= 5;
-
     let resultMsg = [];
-    logs.forEach(l => resultMsg.push({ sender: "시스템", text: l, timestamp: new Date().getTime() }));
+    logs.forEach((l, i) => resultMsg.push({ sender: "시스템", text: l, timestamp: ts + i }));
 
     if (isGameOver) {
         let endText = "";
         if (hp_left <= 0 && hp_right <= 0) {
             endText = "⚡ 양측 동시 전투 불능! 무승부!";
+            motions.push({ side: 'left',  popup: '패배...', popupType: 'damage' });
+            motions.push({ side: 'right', popup: '패배...', popupType: 'damage' });
         } else if (hp_left <= 0) {
             endText = `🏆 ${nameR} 승리!`;
+            motions.push({ side: 'right', popup: '승리!', popupType: 'win' });
         } else if (hp_right <= 0) {
             endText = `🏆 ${nameL} 승리!`;
+            motions.push({ side: 'left', popup: '승리!', popupType: 'win' });
         } else {
-            // 5라운드 종료
-            endText = hp_left > hp_right
-                ? `🏆 5라운드 종료 — HP 우세 ${nameL} 승리! (${hp_left} vs ${hp_right})`
-                : hp_right > hp_left
-                ? `🏆 5라운드 종료 — HP 우세 ${nameR} 승리! (${hp_left} vs ${hp_right})`
-                : `⚡ 5라운드 종료 — 무승부! (${hp_left} vs ${hp_right})`;
+            if (hp_left > hp_right) {
+                endText = `🏆 5라운드 종료 — ${nameL} 승리! (${hp_left} vs ${hp_right})`;
+                motions.push({ side: 'left', popup: '승리!', popupType: 'win' });
+            } else if (hp_right > hp_left) {
+                endText = `🏆 5라운드 종료 — ${nameR} 승리! (${hp_left} vs ${hp_right})`;
+                motions.push({ side: 'right', popup: '승리!', popupType: 'win' });
+            } else {
+                endText = `⚡ 5라운드 종료 — 무승부! (${hp_left} vs ${hp_right})`;
+            }
         }
-        resultMsg.push({ sender: "시스템", text: endText, timestamp: new Date().getTime() + 1 });
+        resultMsg.push({ sender: "시스템", text: endText, timestamp: ts + logs.length + 1 });
 
         await window.dbUtils.updateDoc(roomRef, {
-            hp_left,
-            hp_right,
-            action_left: "",
-            action_right: "",
+            hp_left, hp_right,
+            action_left: "", action_right: "",
             status: "ended",
+            lastMotions: motions,
             messages: window.dbUtils.arrayUnion(...resultMsg)
         });
     } else {
-        resultMsg.push({
-            sender: "시스템",
-            text: `— ROUND ${newRound} 시작 —`,
-            timestamp: new Date().getTime() + 1
-        });
+        resultMsg.push({ sender: "시스템", text: `— ROUND ${newRound} 시작 —`, timestamp: ts + logs.length + 1 });
 
         await window.dbUtils.updateDoc(roomRef, {
-            hp_left,
-            hp_right,
-            action_left: "",
-            action_right: "",
+            hp_left, hp_right,
+            action_left: "", action_right: "",
             currentRound: newRound,
+            lastMotions: motions,
             messages: window.dbUtils.arrayUnion(...resultMsg)
         });
     }
@@ -539,6 +615,15 @@ function startRealtimeUpdate(roomId) {
                 const dBox = document.getElementById(`dice-${s}`);
                 if (dBox) { dBox.style.opacity = '0.35'; dBox.style.cursor = 'not-allowed'; }
             });
+        }
+
+        // ── 모션 재생 (lastMotions 변경 감지) ──
+        if (data.lastMotions && data.lastMotions.length > 0) {
+            const motionKey = JSON.stringify(data.lastMotions);
+            if (motionKey !== window._lastMotionKey) {
+                window._lastMotionKey = motionKey;
+                playMotions(data.lastMotions);
+            }
         }
 
         // HP 바 + 숫자
@@ -724,7 +809,6 @@ async function startGame() {
         status: "fighting",
         ready_left: false,
         ready_right: false,
-        // 전투 필드 초기화
         dice_left: 0,
         dice_right: 0,
         action_left: "",
@@ -733,10 +817,51 @@ async function startGame() {
         hp_left: 100,
         hp_right: 100,
         currentRound: 1,
+        lastMotions: [],
         messages: window.dbUtils.arrayUnion({
             sender: "시스템",
             text: "⚔️ 전투가 시작되었습니다! 각자 다이스를 굴려 선공을 결정하세요.",
             timestamp: new Date().getTime()
         })
+    });
+}
+
+// ─────────────────────────────────────────
+// 모션 재생 유틸
+// ─────────────────────────────────────────
+function showPopup(side, text, type) {
+    const container = document.getElementById(`popup-${side}`);
+    if (!container) return;
+    const el = document.createElement('div');
+    el.className = `combat-popup ${type}`;
+    el.innerText = text;
+    // 이미지 위 중앙에 표시
+    el.style.left = '50%';
+    el.style.top  = '40%';
+    el.style.transform = 'translateX(-50%)';
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 1200);
+}
+
+function playMotions(motions) {
+    // 모션을 순서대로 살짝 딜레이 두고 실행
+    motions.forEach((m, i) => {
+        setTimeout(() => {
+            const imgEl = document.getElementById(`img-${m.side}`);
+            if (imgEl && m.anim) {
+                // 기존 애니메이션 클래스 초기화
+                imgEl.classList.remove('anim-attack', 'anim-hit', 'anim-dodge', 'anim-defend', 'anim-flee');
+                // reflow trick: 애니메이션 재시작
+                void imgEl.offsetWidth;
+                imgEl.classList.add(`anim-${m.anim}`);
+                // 애니메이션 끝나면 클래스 제거
+                imgEl.addEventListener('animationend', () => {
+                    imgEl.classList.remove(`anim-${m.anim}`);
+                }, { once: true });
+            }
+            if (m.popup) {
+                showPopup(m.side, m.popup, m.popupType || 'damage');
+            }
+        }, i * 220);
     });
 }
