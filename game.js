@@ -13,8 +13,8 @@ function selectCharacter(name, isAdmin, num) {
     if (profileDisplay) {
         profileDisplay.classList.remove('hidden');
         document.getElementById('my-char-name').innerText = name; 
-        const firstName = name.split(' ')[0];
-        document.getElementById('my-char-img').innerHTML = `<img src="image/${firstName}${num || 1}.png" class="w-full h-full object-cover">`;
+        const imgSrc = isAdmin ? "image/관리자.png" : `image/${name.split(' ')[0]}${num || 1}.png`;
+        document.getElementById('my-char-img').innerHTML = `<img src="${imgSrc}" class="w-full h-full object-cover">`;
     }
 
     document.getElementById('character-selection').classList.add('hidden');
@@ -264,16 +264,8 @@ function listenToRoomList() {
                 <div><span class="text-yellow-400 font-bold">[${roomData.roomType}]</span> ${roomData.roomName || roomId}</div>
                 <button class="join-btn bg-green-600 px-3 py-1 rounded text-sm hover:bg-green-500" data-room-id="${roomId}">입장</button>
             `;
-            roomItem.querySelector('.join-btn').addEventListener('click', async () => {
-                if (myProfile.type === "ADMIN") {
-                    joinRoom(roomId, "admin");
-                    return;
-                }
-                // 빈 자리 확인 후 left/right 자동 배정
-                const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", roomId));
-                if (!snap.exists()) return;
-                const d = snap.data();
-                const side = (!d.name_left || d.name_left === "") ? "left" : "right";
+            roomItem.querySelector('.join-btn').addEventListener('click', () => {
+                const side = myProfile.type === "ADMIN" ? "admin" : "right";
                 joinRoom(roomId, side);
             });
             roomListDiv.appendChild(roomItem);
@@ -322,22 +314,12 @@ async function backToLobby() {
         const roomSnap = await window.dbUtils.getDoc(roomRef);
         if (roomSnap.exists()) {
             const data = roomSnap.data();
-            if (myProfile.type === "ADMIN") {
-                // 관리자가 나가면 방 삭제
-                await window.dbUtils.deleteDoc(roomRef);
-            } else {
-                const newCount = (data.playersCount || 1) - 1;
-                if (newCount <= 0) {
-                    await window.dbUtils.deleteDoc(roomRef);
-                } else {
-                    const updateData = {
-                        playersCount: newCount,
-                        [`ready_${myProfile.side}`]: false,
-                        messages: window.dbUtils.arrayUnion({ sender: "시스템", text: `${myProfile.name} 님이 퇴장했습니다.`, timestamp: new Date().getTime() })
-                    };
-                    updateData[`name_${myProfile.side}`] = "";
-                    await window.dbUtils.updateDoc(roomRef, updateData);
-                }
+            const newCount = (data.playersCount || 1) - 1;
+            if (newCount <= 0) { await window.dbUtils.deleteDoc(roomRef); } 
+            else {
+                const updateData = { playersCount: newCount, messages: window.dbUtils.arrayUnion({ sender: "시스템", text: `${myProfile.name} 님이 퇴장했습니다.`, timestamp: new Date().getTime() }) };
+                updateData[`name_${myProfile.side}`] = ""; 
+                await window.dbUtils.updateDoc(roomRef, updateData);
             }
         }
     }
