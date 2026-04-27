@@ -331,6 +331,41 @@ async function resolveTurn(data, roomRef) {
         if (escF) hp_first = 0;
         if (escS) hp_second = 0;
         logs.push(`결과: ${nameFirst} 도주 ${escF?'성공':'실패'} / ${nameSecond} 도주 ${escS?'성공':'실패'}`);
+    
+    
+    // [추가] 선공이 도주, 후공이 방어/회피일 때
+    } else if (aFirst === '도주' && (aSecond === '회피' || aSecond === '방어')) {
+        const escaped = Math.random() < 0.5;
+        motions.push({ side: turnFirst, anim: 'flee', popup: escaped ? '도주!' : '실패!', popupType: 'flee' });
+        
+        // 상대방의 방어/회피 모션 출력
+        if (aSecond === '회피') motions.push({ side: turnSecond, anim: 'dodge' });
+        if (aSecond === '방어') motions.push({ side: turnSecond, anim: 'defend' });
+
+        if (escaped) { 
+            hp_first = 0; // 도주 성공 시 즉시 HP 0 (패배 처리)
+            logs.push(`결과: ${nameFirst} 도주 성공! → 전투 이탈(패배)`); 
+        } else { 
+            logs.push(`결과: ${nameFirst} 도주 실패! 하지만 상대가 공격하지 않아 피해는 없습니다.`); 
+        }
+
+    // [추가] 후공이 도주, 선공이 방어/회피일 때
+    } else if ((aFirst === '회피' || aFirst === '방어') && aSecond === '도주') {
+        const escaped = Math.random() < 0.5;
+        motions.push({ side: turnSecond, anim: 'flee', popup: escaped ? '도주!' : '실패!', popupType: 'flee' });
+        
+        // 상대방의 방어/회피 모션 출력
+        if (aFirst === '회피') motions.push({ side: turnFirst, anim: 'dodge' });
+        if (aFirst === '방어') motions.push({ side: turnFirst, anim: 'defend' });
+
+        if (escaped) { 
+            hp_second = 0; // 도주 성공 시 즉시 HP 0 (패배 처리)
+            logs.push(`결과: ${nameSecond} 도주 성공! → 전투 이탈(패배)`); 
+        } else { 
+            logs.push(`결과: ${nameSecond} 도주 실패! 하지만 상대가 공격하지 않아 피해는 없습니다.`); 
+        }
+    
+    // [수정] 바로 위 괄호가 빠져있었습니다!
     } else {
         logs.push(`결과: 서로 맞붙지 않아 피해가 없습니다.`);
     }
@@ -692,10 +727,23 @@ function listenToRoomList() {
                 <div><span class="text-yellow-400 font-bold">[${rd.roomType}]</span> ${rd.roomName || d.id}</div>
                 <button class="join-btn bg-green-600 px-3 py-1 rounded text-sm hover:bg-green-500">입장</button>`;
             item.querySelector('.join-btn').addEventListener('click', async () => {
-                if (myProfile.type === "ADMIN") { joinRoom(d.id, "admin"); return; }
+                // 1. 관리자(ADMIN)는 정원 상관없이 무조건 입장(관전) 가능
+                if (myProfile.type === "ADMIN") { 
+                    joinRoom(d.id, "admin"); 
+                    return; 
+                }
+
                 const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", d.id));
                 if (!snap.exists()) return;
                 const sd = snap.data();
+
+                // 2. 일반 플레이어 정원 체크: 1vs1 방이고 이미 2명이 들어왔거나, 양쪽 자리가 다 찼을 때
+                if (sd.roomType === "1vs1" && (sd.playersCount >= 2 || (sd.name_left && sd.name_right))) {
+                    alert("인원이 모두 차서 입장할 수 없습니다.");
+                    return;
+                }
+
+                // 3. 자리가 비어있다면 입장 진행
                 joinRoom(d.id, (sd.name_left?.trim()) ? "right" : "left");
             });
             div.appendChild(item);
