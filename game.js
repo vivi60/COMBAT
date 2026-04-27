@@ -9,8 +9,8 @@ let _lastMotionId = null; // 모션 중복 재생 방지
 // 주사위 유틸
 // ═══════════════════════════════════════════
 function roll(max) { return Math.floor(Math.random() * max) + 1; }
-function rollAttack()  { return roll(15) + roll(5); }
-function rollDefense() { return roll(15) + roll(5); }
+function rollAttack()  { return roll(15) + 5; }
+function rollDefense() { return roll(15) + 5; }
 
 // ═══════════════════════════════════════════
 // [2] 캐릭터 선택
