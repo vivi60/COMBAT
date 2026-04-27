@@ -80,6 +80,14 @@ async function joinRoom(roomId, side) {
                 sender: "시스템", text: "관리자 님이 입장했습니다.", timestamp: Date.now()
             })};
         } else {
+            // [추가] 파이어베이스에서 캐릭터 체력 가져오기
+            const charName = myProfile.name;
+            const charDocRef = window.dbUtils.doc(window.db, "characters", charName);
+            const charSnap = await window.dbUtils.getDoc(charDocRef);
+            
+            // 파이어베이스에 maxHp가 있으면 그 값을, 없으면 100을 기본으로 설정
+            const startingHp = (charSnap.exists() && charSnap.data().maxHp !== undefined) ? charSnap.data().maxHp : 100;
+
             updateData = {
                 playersCount: window.dbUtils.increment(1),
                 messages: window.dbUtils.arrayUnion({
@@ -89,9 +97,10 @@ async function joinRoom(roomId, side) {
                 })
             };
             
-            // 체력을 100으로 고정
+            // [핵심] 현재 체력은 파이어베이스 값(startingHp)으로 설정!
             updateData[`name_${side}`] = myProfile.charId;
-            updateData[`hp_${side}`] = 100;
+            updateData[`hp_${side}`] = startingHp;
+            updateData[`start_hp_${side}`] = startingHp; // 게임 재시작을 위해 방 데이터에 저장해둠
         }
         await window.dbUtils.updateDoc(roomRef, updateData);
     } catch (e) { console.error("joinRoom 오류:", e); }
@@ -588,18 +597,18 @@ function startRealtimeUpdate(roomId) {
             _lastMotionId = null;
         }
 
-        // ── HP 바 ──
+        // ── HP 바 업데이트 ──
         const hpL = data.hp_left ?? 100;
         const hpR = data.hp_right ?? 100;
 
-        // 최대치를 100으로 고정하여 비율 계산
+        // [핵심] 바 길이를 무조건 최대치 100을 기준으로 계산 (50이면 절반만 채워짐)
         document.getElementById('hp-left').style.width  = Math.max(0, hpL) + "%";
         document.getElementById('hp-right').style.width = Math.max(0, hpR) + "%";
 
         const hlt = document.getElementById('hp-left-text');
         const hrt = document.getElementById('hp-right-text');
 
-        // 텍스트 뒤에 / 100 을 아예 못 박아둠
+        // [핵심] 텍스트 뒤에 최대 체력을 / 100 으로 못 박아둠
         if (hlt) hlt.innerText = `${Math.max(0, hpL)} / 100`;
         if (hrt) hrt.innerText = `${Math.max(0, hpR)} / 100`;
         document.getElementById('round-display').innerText = `ROUND ${data.currentRound || 1} / 5`;
@@ -866,7 +875,9 @@ async function startGame() {
         firstSide: "", turnFirst: "",
         phase: "dice",
         action_first: "", action_second: "",
-        hp_left: 100, hp_right: 100,
+        // [핵심] 100으로 덮어쓰지 않고, 입장할 때 저장해둔 시작 체력으로 초기화
+        hp_left: d.start_hp_left ?? 100,
+        hp_right: d.start_hp_right ?? 100,
         currentRound: 1,
         lastMotions: [], lastMotionId: 0,
         messages: window.dbUtils.arrayUnion({
