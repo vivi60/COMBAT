@@ -80,16 +80,27 @@ async function joinRoom(roomId, side) {
                 sender: "시스템", text: "관리자 님이 입장했습니다.", timestamp: Date.now()
             })};
         } else {
-            myProfile.side = side;
+            // [추가] 캐릭터의 상세 데이터(최대 체력 등) 가져오기
+            const charName = myProfile.name;
+            const charDocRef = window.dbUtils.doc(window.db, "characters", charName);
+            const charSnap = await window.dbUtils.getDoc(charDocRef);
+            
+            // 데이터가 없으면 기본값 100 사용
+            const maxHp = charSnap.exists() ? charSnap.data().maxHp : 100;
+
             updateData = {
                 playersCount: window.dbUtils.increment(1),
                 messages: window.dbUtils.arrayUnion({
                     sender: "시스템",
-                    text: `${myProfile.name} 님이 ${side === 'left' ? '왼쪽' : '오른쪽'} 팀으로 입장했습니다.`,
+                    text: `${myProfile.name} 님이 입장했습니다. (HP: ${maxHp})`,
                     timestamp: Date.now()
                 })
             };
+            
+            // 방 데이터에 해당 팀의 현재 HP와 최대 HP를 기록
             updateData[`name_${side}`] = myProfile.charId;
+            updateData[`hp_${side}`] = maxHp;      // 현재 체력
+            updateData[`max_hp_${side}`] = maxHp;  // 최대 체력 저장
         }
         await window.dbUtils.updateDoc(roomRef, updateData);
     } catch (e) { console.error("joinRoom 오류:", e); }
@@ -587,14 +598,21 @@ function startRealtimeUpdate(roomId) {
         }
 
         // ── HP 바 ──
-        const hpL = Math.max(0, data.hp_left  ?? 100);
-        const hpR = Math.max(0, data.hp_right ?? 100);
-        document.getElementById('hp-left').style.width  = hpL + "%";
-        document.getElementById('hp-right').style.width = hpR + "%";
-        const hlt = document.getElementById('hp-left-text');
+        // ── HP 바 업데이트 ──
+const hpL = data.hp_left ?? 100;
+const maxHpL = data.max_hp_left ?? 100; // 저장된 최대 체력 사용
+const hpR = data.hp_right ?? 100;
+const maxHpR = data.max_hp_right ?? 100;
+
+// 백분율 계산: (현재HP / 최대HP) * 100
+document.getElementById('hp-left').style.width  = (hpL / maxHpL * 100) + "%";
+document.getElementById('hp-right').style.width = (hpR / maxHpR * 100) + "%";
+
+const hlt = document.getElementById('hp-left-text');
 const hrt = document.getElementById('hp-right-text');
-if (hlt) hlt.innerText = `${hpL} / 100`;
-if (hrt) hrt.innerText = `${hpR} / 100`;
+
+if (hlt) hlt.innerText = `${Math.max(0, hpL)} / ${maxHpL}`;
+if (hrt) hrt.innerText = `${Math.max(0, hpR)} / ${maxHpR}`;
         document.getElementById('round-display').innerText = `ROUND ${data.currentRound || 1} / 5`;
 
         // ── 채팅 로그 ──
