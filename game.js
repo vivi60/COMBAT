@@ -43,7 +43,8 @@ async function createRoom(type, title) {
 
     await window.dbUtils.setDoc(roomRef, initialData);
     // 수정 후 (방 생성 후 바로 입장 함수 호출)
-     joinRoom(newRoomId, "left");
+    const creatorSide = myProfile.type === "ADMIN" ? "admin" : "left";
+    joinRoom(newRoomId, creatorSide);
 }
 
 // [4] 방 입장 시 닉네임 저장 수정
@@ -264,9 +265,21 @@ function listenToRoomList() {
                 <div><span class="text-yellow-400 font-bold">[${roomData.roomType}]</span> ${roomData.roomName || roomId}</div>
                 <button class="join-btn bg-green-600 px-3 py-1 rounded text-sm hover:bg-green-500" data-room-id="${roomId}">입장</button>
             `;
-            roomItem.querySelector('.join-btn').addEventListener('click', () => {
-                const side = myProfile.type === "ADMIN" ? "admin" : "right";
-                joinRoom(roomId, side);
+            roomItem.querySelector('.join-btn').addEventListener('click', async () => {
+                if (myProfile.type === "ADMIN") {
+                    joinRoom(roomId, "admin");
+                    return;
+                }
+                // name_left가 비어있으면 left, 아니면 right
+                try {
+                    const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", roomId));
+                    if (!snap.exists()) return;
+                    const d = snap.data();
+                    const side = (!d.name_left || d.name_left === "") ? "left" : "right";
+                    joinRoom(roomId, side);
+                } catch(e) {
+                    joinRoom(roomId, "right");
+                }
             });
             roomListDiv.appendChild(roomItem);
         });
