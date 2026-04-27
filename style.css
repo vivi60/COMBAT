@@ -218,7 +218,7 @@ body {
 }
 /* 레디 버튼 스타일 */
 #ready-btn-left, #ready-btn-right {
-    background: rgba(87, 130, 90, 0.25);
+    background: rgba(87, 130, 90, 0.55);
     border-color: var(--main-green) !important;
     color: #c8e6c9 !important;
     transition: all 0.3s;

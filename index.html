@@ -194,8 +194,11 @@
                 <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left">
                 <span class="text-gray-500">No Image</span>
                 </div>
-                <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
-                    <div id="hp-left" class="bg-red-500 h-full w-full"></div>
+                <div class="flex items-center gap-2 w-full mt-2">
+                    <div class="hp-bar flex-1 bg-red-900 h-4 rounded overflow-hidden">
+                        <div id="hp-left" class="bg-red-500 h-full w-full"></div>
+                    </div>
+                    <span id="hp-left-text" class="text-sm font-bold text-red-300 whitespace-nowrap">100</span>
                 </div>
                 <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-3 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
                     ○ 레디
@@ -216,17 +219,20 @@
                 <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right">
                 <span class="text-gray-500">No Image</span>
                 </div>
-                <div class="hp-bar w-full bg-red-900 h-4 mt-2 rounded overflow-hidden">
-                    <div id="hp-right" class="bg-red-500 h-full w-full"></div>
+                <div class="flex items-center gap-2 w-full mt-2">
+                    <div class="hp-bar flex-1 bg-red-900 h-4 rounded overflow-hidden">
+                        <div id="hp-right" class="bg-red-500 h-full w-full"></div>
+                    </div>
+                    <span id="hp-right-text" class="text-sm font-bold text-red-300 whitespace-nowrap">100</span>
                 </div>
                 <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-3 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
                     ○ 레디
                 </button>
                 <div class="action-buttons mt-4 grid grid-cols-2 gap-2 hidden" id="btns-right">
-                    <button class="bg-red-600 px-4 py-2 rounded">공격</button>
-                    <button class="bg-blue-600 px-4 py-2 rounded">회피</button>
-                    <button class="bg-green-600 px-4 py-2 rounded">방어</button>
-                    <button class="bg-gray-600 px-4 py-2 rounded">도주</button>
+                    <button class="bg-red-600 px-4 py-2 rounded" onclick="selectAction('공격')">공격</button>
+                    <button class="bg-blue-600 px-4 py-2 rounded" onclick="selectAction('회피')">회피</button>
+                    <button class="bg-green-600 px-4 py-2 rounded" onclick="selectAction('방어')">방어</button>
+                    <button class="bg-gray-600 px-4 py-2 rounded" onclick="selectAction('도주')">도주</button>
                 </div>
             </div>
         </div>

@@ -456,7 +456,7 @@ function startRealtimeUpdate(roomId) {
             if (bothJoined && data.status === "waiting" && myProfile.side === s) {
                 btn.classList.remove('hidden');
                 const isReady = data[`ready_${s}`];
-                btn.textContent  = isReady ? '✔ 레디 완료' : '○ 레디';
+                btn.textContent  = isReady ? '레디 완료' : '레디';
                 btn.style.borderColor = isReady ? '#57825a' : '';
                 btn.style.color       = isReady ? '#89b38c' : '';
             } else {
@@ -478,9 +478,9 @@ function startRealtimeUpdate(roomId) {
             if (readyOverlay) readyOverlay.classList.add('hidden');
         }
 
-        // 선공 판정: 두 다이스가 모두 0보다 크면 실행
+        // 선공 판정: left 플레이어만 호출 (중복 공지 방지)
         if (data.status === 'fighting' && data.dice_left > 0 && data.dice_right > 0 && !data.isDetermined) {
-            if (myProfile.side === 'left' || myProfile.type === 'ADMIN') {
+            if (myProfile.side === 'left') {
                 determineTurnOrderShared(data);
             }
         }
@@ -541,9 +541,15 @@ function startRealtimeUpdate(roomId) {
             });
         }
 
-        // HP 바
-        document.getElementById('hp-left').style.width  = Math.max(0, data.hp_left  ?? 100) + "%";
-        document.getElementById('hp-right').style.width = Math.max(0, data.hp_right ?? 100) + "%";
+        // HP 바 + 숫자
+        const hpL = Math.max(0, data.hp_left  ?? 100);
+        const hpR = Math.max(0, data.hp_right ?? 100);
+        document.getElementById('hp-left').style.width  = hpL + "%";
+        document.getElementById('hp-right').style.width = hpR + "%";
+        const hpLeftText  = document.getElementById('hp-left-text');
+        const hpRightText = document.getElementById('hp-right-text');
+        if (hpLeftText)  hpLeftText.innerText  = hpL;
+        if (hpRightText) hpRightText.innerText = hpR;
         document.getElementById('round-display').innerText = `ROUND ${data.currentRound || 1} / 5`;
 
         // 채팅 로그
