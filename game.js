@@ -846,6 +846,18 @@ async function startGame() {
         document.getElementById(`first-badge-${s}`)?.classList.add('hidden');
     });
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+
+    // [수정] 현재 방 데이터를 먼저 가져와서 저장된 최대 체력을 확인합니다.
+    const snap = await window.dbUtils.getDoc(roomRef);
+    if (!snap.exists()) return;
+    const d = snap.data();
+
+    ['left','right'].forEach(s => {
+        const dBox = document.getElementById(`dice-${s}`);
+        if (dBox) { dBox.style.display = ''; dBox.innerText = '?'; dBox.classList.remove('dice-rolling'); }
+        document.getElementById(`first-badge-${s}`)?.classList.add('hidden');
+    });
+    
     await window.dbUtils.updateDoc(roomRef, {
         status: "fighting",
         ready_left: false, ready_right: false,
