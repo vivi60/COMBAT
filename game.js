@@ -448,8 +448,13 @@ function startRealtimeUpdate(roomId) {
             if (!dBox || !badge) return;
             if (data.isDetermined) {
                 dBox.style.display = 'none';
-                if (data.firstSide === s) badge.classList.remove('hidden');
-                else                      badge.classList.add('hidden');
+                
+                // [수정 포인트] 처음 선공(firstSide)이 아닌, 현재 턴(turnFirst)을 따라가게 함
+                if (data.turnFirst === s) {
+                    badge.classList.remove('hidden');
+                } else {
+                    badge.classList.add('hidden');
+                }
             } else {
                 dBox.style.display = '';
                 dBox.style.opacity = status === 'fighting' ? '1' : '0.35';
@@ -567,7 +572,7 @@ if (hrt) hrt.innerText = `${hpR} / 100`;
                     log.className = "text-white py-1 border-b border-white/10";
                     log.innerHTML = msg.sender === "시스템"
                         ? `<span class="text-yellow-400 font-bold">[안내] ${msg.text}</span>`
-                        : `<span class="text-blue-400 font-bold">${msg.sender}:</span> ${msg.text}`;
+                        : `<span class="text-green-400 font-bold">${msg.sender}:</span> ${msg.text}`;
                     chatBox.appendChild(log);
                 });
                 chatBox.scrollTop = chatBox.scrollHeight;
