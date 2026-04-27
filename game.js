@@ -376,6 +376,8 @@ async function resolveTurn(data, roomRef) {
             messages: window.dbUtils.arrayUnion(...resultMsg)
         });
 
+    // ... (resolveTurn 함수의 앞부분 생략) ...
+
     } else if (phase === 'turn_a') {
         // turn_a 종료 → 선후공 교체하여 turn_b 시작
         const newTurnFirst     = turnFirst === 'left' ? 'right' : 'left';
@@ -391,17 +393,21 @@ async function resolveTurn(data, roomRef) {
         });
 
     } else {
-        // turn_b 종료 → 다음 라운드, 원래 선공으로 복귀
-        const nextRound     = round + 1;
-        const origFirst     = data.firstSide;
-        const origFirstName = data[`name_${origFirst}`].split('|')[0];
-        resultMsg.push({ sender:"시스템", text:`— ROUND ${nextRound} 시작 — ${origFirstName} 선공`, timestamp: ts + logs.length + 1 });
+        // turn_b 종료 → 다음 라운드 시작
+        const nextRound = round + 1;
+        const origFirst = data.firstSide;
+        
+        // [추가] 라운드가 홀수면 원래 선공, 짝수면 반대가 선공
+        const roundStartFirst = (nextRound % 2 !== 0) ? origFirst : (origFirst === 'left' ? 'right' : 'left');
+        const roundStartFirstName = data[`name_${roundStartFirst}`].split('|')[0];
+
+        resultMsg.push({ sender:"시스템", text:`— ROUND ${nextRound} 시작 — ${roundStartFirstName} 선공`, timestamp: ts + logs.length + 1 });
         await window.dbUtils.updateDoc(roomRef, {
             hp_left, hp_right,
             action_first: "", action_second: "",
             currentRound: nextRound,
             phase: "turn_a",
-            turnFirst: origFirst,
+            turnFirst: roundStartFirst, // 교체된 선공 적용
             lastMotions: motions, lastMotionId: motionId,
             messages: window.dbUtils.arrayUnion(...resultMsg)
         });
@@ -462,7 +468,7 @@ function startRealtimeUpdate(roomId) {
             if (bothJoined && status === "waiting" && side === s) {
                 btn.classList.remove('hidden');
                 const isReady = data[`ready_${s}`];
-                btn.textContent       = isReady ? '✔ 레디 완료' : '○ 레디';
+                btn.textContent       = isReady ? '준비 완료' : '준비';
                 btn.style.borderColor = isReady ? '#57825a' : '';
                 btn.style.color       = isReady ? '#89b38c' : '';
             } else {
@@ -567,7 +573,52 @@ function startRealtimeUpdate(roomId) {
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
         }
-    });
+// ── [추가] 게임 종료 결과창 (승/패 표시) ──
+        const resOverlay = document.getElementById('result-overlay');
+        if (status === "ended") {
+            if (resOverlay) {
+                resOverlay.classList.remove('hidden');
+
+                const nameL = data.name_left ? data.name_left.split('|')[0] : '대기 중';
+                const nameR = data.name_right ? data.name_right.split('|')[0] : '대기 중';
+                const hpL = Math.max(0, data.hp_left ?? 0);
+                const hpR = Math.max(0, data.hp_right ?? 0);
+
+                document.getElementById('res-name-left').innerText = nameL;
+                document.getElementById('res-hp-left').innerText = `HP ${hpL}`;
+                document.getElementById('res-name-right').innerText = nameR;
+                document.getElementById('res-hp-right').innerText = `HP ${hpR}`;
+
+                const resTitle = document.getElementById('result-title');
+                const isLeftWin = hpR <= 0 || hpL > hpR;
+                const isRightWin = hpL <= 0 || hpR > hpL;
+
+                // 무승부 판정
+                if (hpL === hpR) {
+                    resTitle.innerText = "무승부!";
+                    resTitle.className = "text-4xl font-black mb-6 italic tracking-widest text-gray-400";
+                } 
+                // 관전자(ADMIN) 시점
+                else if (myProfile.side === 'admin') {
+                    resTitle.innerText = isLeftWin ? `${nameL} 승리!` : `${nameR} 승리!`;
+                    resTitle.className = "text-3xl font-black mb-6 italic text-yellow-400";
+                } 
+                // 플레이어 시점 승/패 판정
+                else {
+                    const amIWinner = (isLeftWin && side === 'left') || (isRightWin && side === 'right');
+                    if (amIWinner) {
+                        resTitle.innerText = "승리!";
+                        resTitle.className = "text-5xl font-black mb-6 italic tracking-widest text-yellow-400";
+                    } else {
+                        resTitle.innerText = "패배!";
+                        resTitle.className = "text-5xl font-black mb-6 italic tracking-widest text-red-500";
+                    }
+                }
+            }
+        } else {
+            if (resOverlay) resOverlay.classList.add('hidden');
+        }
+    }); // onSnapshot 끝
 }
 
 // ═══════════════════════════════════════════
@@ -693,6 +744,10 @@ async function backToLobby() {
     document.getElementById('user-profile-display').classList.remove('hidden');
     document.getElementById('battle-screen').classList.add('hidden');
     document.getElementById('game-lobby').classList.remove('hidden');
+
+    // [추가] 로비로 돌아갈 때 결과창 숨기기
+    const resOverlay = document.getElementById('result-overlay');
+    if (resOverlay) resOverlay.classList.add('hidden');
 }
 
 function backToCharacterSelection() {

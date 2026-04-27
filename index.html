@@ -277,6 +277,29 @@
         </div>
     </div>
 
+    <div id="ready-overlay" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden">
+        </div>
+
+    <div id="result-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center hidden z-50">
+        <div class="bg-[#2d3d2d] border-2 border-light-green p-8 rounded-2xl w-96 text-center shadow-2xl">
+            <h2 id="result-title" class="text-4xl font-black mb-6 italic tracking-widest text-yellow-400">결과</h2>
+            
+            <div class="bg-black/30 rounded-lg p-4 mb-6 flex flex-col gap-3 border border-white/10">
+                <div class="flex justify-between items-center px-2">
+                    <span id="res-name-left" class="font-bold text-blue-300">이름</span>
+                    <span id="res-hp-left" class="text-sm text-gray-400 font-mono">HP 100</span>
+                </div>
+                <div class="text-gray-600 text-xs italic font-bold">VS</div>
+                <div class="flex justify-between items-center px-2">
+                    <span id="res-name-right" class="font-bold text-red-300">이름</span>
+                    <span id="res-hp-right" class="text-sm text-gray-400 font-mono">HP 100</span>
+                </div>
+            </div>
+
+            <button onclick="backToLobby()" class="btn-green w-full py-3 rounded-lg font-bold text-lg shadow-lg">방 나가기</button>
+        </div>
+    </div>
+    
 <script type="module">
     import { 
         initializeApp 
