@@ -44,7 +44,7 @@
 
 /* 배경색 대신 이미지를 적용 */
 body {
-    background-image: url('image/00bg-light.jpg'); /* 여기에 실제 파일명을 적어주세요 */
+    background-image: url('image/가나다.png'); /* 여기에 실제 파일명을 적어주세요 */
     background-size: cover;      /* 화면에 꽉 차게 조절 */
     background-position: center; /* 가운데 정렬 */
     background-attachment: fixed; /* 스크롤해도 배경은 고정 */
