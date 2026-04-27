@@ -179,7 +179,7 @@
     </div>
 </div>
 
-    <div id="battle-screen" class="hidden h-screen flex flex-col p-4">
+    <div id="battle-screen" class="hidden min-h-screen flex flex-col p-4 gap-8">
         <button onclick="backToLobby()" class="absolute top-4 left-4 bg-red-900/50 hover:bg-red-800 px-4 py-2 rounded text-sm border border-red-700 transition z-10">
         ◀ 기권하고 로비로
         </button>
@@ -204,18 +204,18 @@
                     </div>
                     <div id="popup-left" class="absolute inset-0 pointer-events-none"></div>
                 </div>
-                <div class="flex items-center gap-2 w-full mt-2">
-                    <div class="hp-bar flex-1 bg-red-900 h-4 rounded overflow-hidden">
-                        <div id="hp-left" class="bg-red-500 h-full w-full"></div>
-                    </div>
-                    <span id="hp-left-text" class="text-sm font-bold text-red-300 whitespace-nowrap">100</span>
-                </div>
+                <div class="relative w-full mt-3 h-8 bg-black/80 rounded border-2 border-gray-600 shadow-[0_0_10px_rgba(0,0,0,0.8)] overflow-hidden">
+    <div id="hp-left" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span id="hp-left-text" class="text-white font-black text-lg tracking-widest">100 / 100</span>
+    </div>
+</div>
                 <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-2 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
                     ○ 레디
                 </button>
             </div>
 
-            <div class="text-5xl font-black italic text-gray-500 mt-24">VS</div>
+            <div class="text-6xl font-black italic text-gray-400 self-center pt-10">VS</div>
 
             <!-- 오른쪽 -->
             <div id="team-right" class="flex flex-col items-center">
@@ -230,12 +230,12 @@
                     </div>
                     <div id="popup-right" class="absolute inset-0 pointer-events-none"></div>
                 </div>
-                <div class="flex items-center gap-2 w-full mt-2">
-                    <div class="hp-bar flex-1 bg-red-900 h-4 rounded overflow-hidden">
-                        <div id="hp-right" class="bg-red-500 h-full w-full"></div>
-                    </div>
-                    <span id="hp-right-text" class="text-sm font-bold text-red-300 whitespace-nowrap">100</span>
-                </div>
+                <div class="relative w-full mt-3 h-8 bg-black/80 rounded border-2 border-gray-600 shadow-[0_0_10px_rgba(0,0,0,0.8)] overflow-hidden">
+    <div id="hp-right" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span id="hp-right-text" class="text-white font-black text-lg tracking-widest">100 / 100</span>
+    </div>
+</div>
                 <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-2 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden">
                     ○ 레디
                 </button>
@@ -260,7 +260,7 @@
         </div>
 
         <!-- 채팅창 (더 크게) -->
-        <div id="chat-area" class="flex-1 bg-black/50 border-t border-gray-600 p-2 flex flex-col" style="min-height: 200px; max-height: 280px;">
+        <div id="chat-area" class="mt-8 w-full bg-black/50 border-t border-gray-600 p-2 flex flex-col" style="min-height: 200px; max-height: 280px;">
             <div id="chat-messages" class="flex-grow overflow-y-auto text-sm space-y-1 mb-2"></div>
             <div class="flex gap-2">
                 <input type="text" id="chat-input" class="flex-grow bg-gray-800 border-none px-3 py-1 text-sm outline-none" placeholder="메시지를 입력하세요...">
@@ -299,7 +299,7 @@
             <button onclick="backToLobby()" class="btn-green w-full py-3 rounded-lg font-bold text-lg shadow-lg">방 나가기</button>
         </div>
     </div>
-    
+
 <script type="module">
     import { 
         initializeApp 

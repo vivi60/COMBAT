@@ -552,9 +552,9 @@ function startRealtimeUpdate(roomId) {
         document.getElementById('hp-left').style.width  = hpL + "%";
         document.getElementById('hp-right').style.width = hpR + "%";
         const hlt = document.getElementById('hp-left-text');
-        const hrt = document.getElementById('hp-right-text');
-        if (hlt) hlt.innerText = hpL;
-        if (hrt) hrt.innerText = hpR;
+const hrt = document.getElementById('hp-right-text');
+if (hlt) hlt.innerText = `${hpL} / 100`;
+if (hrt) hrt.innerText = `${hpR} / 100`;
         document.getElementById('round-display').innerText = `ROUND ${data.currentRound || 1} / 5`;
 
         // ── 채팅 로그 ──
