@@ -183,7 +183,7 @@ async function determineTurnOrderShared(data) {
 }
 
 // ─────────────────────────────────────────
-// [전투] 행동 선택 (본인 행동만 Firestore에 저장)
+// [전투] 행동 선택
 // ─────────────────────────────────────────
 async function selectAction(action) {
     if (!currentRoomId) return;
@@ -191,54 +191,65 @@ async function selectAction(action) {
     if (side !== 'left' && side !== 'right') return;
 
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
-    const snap = await window.dbUtils.getDoc(roomRef);
-    if (!snap.exists()) return;
-    const data = snap.data();
 
-    // 도주는 3라운드부터
-    if (action === '도주' && (data.currentRound || 1) < 3) {
-        alert("도주는 3라운드부터 할 수 있습니다!");
+    // 트랜잭션으로 행동 저장 — 이미 선택했으면 무시, 둘 다 선택 완료면 플래그 세팅
+    let shouldResolve = false;
+    let roomDataForResolve = null;
+
+    try {
+        await window.dbUtils.runTransaction(window.db, async (tx) => {
+            const snap = await tx.get(roomRef);
+            if (!snap.exists()) throw new Error("방 없음");
+            const d = snap.data();
+
+            if (action === '도주' && (d.currentRound || 1) < 3) {
+                throw new Error("도주_불가");
+            }
+            if (d[`action_${side}`]) {
+                throw new Error("이미_선택");
+            }
+
+            const otherSide = side === 'left' ? 'right' : 'left';
+            const otherAction = d[`action_${otherSide}`];
+            const update = {
+                [`action_${side}`]: action,
+                messages: window.dbUtils.arrayUnion({
+                    sender: "시스템",
+                    text: `${myProfile.name} 님이 행동을 선택했습니다.`,
+                    timestamp: new Date().getTime()
+                })
+            };
+            tx.update(roomRef, update);
+
+            // 상대도 이미 선택했으면 내가 계산 담당
+            if (otherAction) {
+                shouldResolve = true;
+                roomDataForResolve = {
+                    ...d,
+                    [`action_${side}`]: action,
+                };
+            }
+        });
+    } catch (e) {
+        if (e.message === "도주_불가") { alert("도주는 3라운드부터 할 수 있습니다!"); return; }
+        if (e.message === "이미_선택") { alert("이미 행동을 선택했습니다!"); return; }
+        console.error("selectAction 오류:", e);
         return;
     }
 
-    // 이미 행동 선택했으면 중복 방지
-    if (data[`action_${side}`]) {
-        alert("이미 행동을 선택했습니다!");
-        return;
-    }
-
-    // 행동 저장 + 버튼 비활성화
-    await window.dbUtils.updateDoc(roomRef, {
-        [`action_${side}`]: action,
-        messages: window.dbUtils.arrayUnion({
-            sender: "시스템",
-            text: `${myProfile.name} 님이 행동을 선택했습니다.`,
-            timestamp: new Date().getTime()
-        })
-    });
-
-    // 버튼 비활성화 (UI 즉시 반영)
+    // 버튼 UI 즉시 반영
     const btns = document.getElementById(`btns-${side}`);
     if (btns) {
-        btns.querySelectorAll('button').forEach(b => b.disabled = true);
-        // 선택한 행동 표시
         btns.querySelectorAll('button').forEach(b => {
-            if (b.textContent.trim() === action) {
-                b.style.outline = '3px solid white';
-                b.style.opacity = '1';
-            } else {
-                b.style.opacity = '0.3';
-            }
+            b.disabled = true;
+            b.style.opacity = b.textContent.trim() === action ? '1' : '0.3';
+            b.style.outline = b.textContent.trim() === action ? '3px solid white' : '';
         });
     }
 
-    // 양쪽 다 행동 선택 시 → 결과 계산 (왼쪽 플레이어 or 관리자가 대표로 계산)
-    const newSnap = await window.dbUtils.getDoc(roomRef);
-    const newData = newSnap.data();
-    if (newData.action_left && newData.action_right) {
-        if (myProfile.side === 'left' || myProfile.type === 'ADMIN') {
-            await resolveCombat(newData, roomRef);
-        }
+    // 둘 다 선택 완료 → 전투 계산
+    if (shouldResolve && roomDataForResolve) {
+        await resolveCombat(roomDataForResolve, roomRef);
     }
 }
 
