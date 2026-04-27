@@ -568,13 +568,22 @@ if (hrt) hrt.innerText = `${hpR} / 100`;
             if (chatBox.children.length !== data.messages.length) {
                 chatBox.innerHTML = "";
                 data.messages.forEach(msg => {
-                    const log = document.createElement('div');
-                    log.className = "text-white py-1 border-b border-white/10";
-                    log.innerHTML = msg.sender === "시스템"
-                        ? `<span class="text-yellow-400 font-bold">[안내] ${msg.text}</span>`
-                        : `<span class="text-green-400 font-bold">${msg.sender}:</span> ${msg.text}`;
-                    chatBox.appendChild(log);
-                });
+    const log = document.createElement('div');
+    log.className = "text-white py-1 border-b border-white/10";
+    
+    // 조건문을 나누어 시스템, 관리자, 일반 플레이어의 색상을 각각 다르게 적용합니다.
+    if (msg.sender === "시스템") {
+        log.innerHTML = `<span class="text-yellow-400 font-bold">[안내] ${msg.text}</span>`;
+    } else if (msg.sender === "관리자") {
+        // 관리자는 눈에 띄는 강렬한 빨간색
+        log.innerHTML = `<span class="text-red-500 font-bold">${msg.sender}:</span> <span class="text-red-200">${msg.text}</span>`;
+    } else {
+        // 일반 플레이어는 통일된 녹색
+        log.innerHTML = `<span class="text-green-400 font-bold">${msg.sender}:</span> ${msg.text}`;
+    }
+    
+    chatBox.appendChild(log);
+});
                 chatBox.scrollTop = chatBox.scrollHeight;
             }
         }
