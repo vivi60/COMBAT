@@ -83,6 +83,18 @@ async function joinRoom(roomId, side) {
     }
 
     // UI 전환은 Firestore 오류와 무관하게 항상 실행
+    // 이전 게임 잔재 초기화
+    ['left', 'right'].forEach(s => {
+        const btns = document.getElementById(`btns-${s}`);
+        if (btns) btns.classList.add('hidden');
+        const readyBtn = document.getElementById(`ready-btn-${s}`);
+        if (readyBtn) readyBtn.classList.add('hidden');
+        const diceEl = document.getElementById(`dice-${s}`);
+        if (diceEl) { diceEl.innerText = '?'; diceEl.classList.remove('dice-rolling'); }
+    });
+    const readyOverlay = document.getElementById('ready-overlay');
+    if (readyOverlay) readyOverlay.classList.add('hidden');
+
     document.getElementById('game-lobby').classList.add('hidden');
     document.getElementById('user-profile-display').classList.add('hidden');
     document.getElementById('battle-screen').classList.remove('hidden');
@@ -96,6 +108,12 @@ async function rollDice(side) {
         return;
     }
     if (!currentRoomId) return;
+    // 전투 시작 후에만 다이스 굴리기 가능
+    const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", currentRoomId));
+    if (!snap.exists() || snap.data().status !== "fighting") {
+        alert("관리자가 전투를 시작한 후에 다이스를 굴릴 수 있습니다!");
+        return;
+    }
 
     const diceEl = document.getElementById(`dice-${side}`);
     diceEl.classList.add('dice-rolling');
@@ -142,6 +160,20 @@ function startRealtimeUpdate(roomId) {
     window.dbUtils.onSnapshot(roomRef, (doc) => {
         const data = doc.data();
         if (!data) return;
+
+        // 다이스 박스: fighting 상태일 때만 활성화 표시
+        ['left', 'right'].forEach(s => {
+            const dBox = document.getElementById(`dice-${s}`);
+            if (dBox) {
+                if (data.status === 'fighting') {
+                    dBox.style.opacity = '1';
+                    dBox.style.cursor = 'pointer';
+                } else {
+                    dBox.style.opacity = '0.35';
+                    dBox.style.cursor = 'not-allowed';
+                }
+            }
+        });
 
         ['left', 'right'].forEach(side => {
             const nameEl = document.getElementById(`name-${side}`);
