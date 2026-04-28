@@ -179,84 +179,230 @@
     </div>
 </div>
 
-    <div id="battle-screen" class="hidden min-h-screen flex flex-col p-4 gap-8">
+    <div id="battle-screen" class="hidden flex flex-col p-4" style="height:100vh; overflow:hidden;">
         <button onclick="backToLobby()" class="absolute top-4 left-4 bg-red-900/50 hover:bg-red-800 px-4 py-2 rounded text-sm border border-red-700 transition z-10">
-        ◀ 기권하고 로비로
+            ◀ 기권하고 로비로
         </button>
-        <div class="text-center mb-2">
-            <span id="round-display" class="text-2xl text-yellow-400 font-bold">ROUND 1 / 5</span>
+
+        <!-- 라운드 표시 -->
+        <div class="text-center pt-2 pb-1 flex-shrink-0">
+            <span id="round-display" class="text-2xl font-bold">ROUND 1 / 5</span>
         </div>
 
-        <!-- 캐릭터 영역 (고정 높이, 버튼 없음) -->
-        <div class="flex justify-between items-start px-20 mb-2" style="min-height:0;">
+        <!-- 전투 영역 (남은 공간 차지) -->
+        <div class="flex-1 overflow-hidden flex flex-col">
 
-            <div id="team-left" class="flex flex-col items-center w-56"> <div class="relative mb-2 w-full flex justify-center">
-                    <div class="dice-box" id="dice-left" onclick="rollDice('left')">?</div>
-                    <div id="first-badge-left" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg border border-green-400 whitespace-nowrap">선공</div>
-                </div>
-                <div id="name-left" class="mb-1 text-xl font-bold text-blue-400">대기 중...</div>
-                <div class="relative w-full flex justify-center">
-                    <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden w-full" id="img-left">
-                        <span class="text-gray-500">No Image</span>
+            <!-- 1vs1 -->
+            <div id="arena-1v1" class="hidden h-full flex justify-between items-start px-16 pt-2 gap-4">
+
+                <div id="team-left" class="flex flex-col items-center w-52">
+                    <div class="relative mb-2 w-full flex justify-center">
+                        <div class="dice-box" id="dice-left" onclick="rollDice('left')">?</div>
+                        <div id="first-badge-left" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg border border-green-400 whitespace-nowrap">선공</div>
                     </div>
-                    <div id="popup-left" class="absolute inset-0 pointer-events-none"></div>
-                </div>
-                <div class="relative w-full mt-3 h-8 bg-black/80 rounded border-2 border-gray-600 shadow-[0_0_10px_rgba(0,0,0,0.8)] overflow-hidden">
-                    <div id="hp-left" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
-                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span id="hp-left-text" class="text-white font-black text-lg tracking-widest">100 / 100</span>
+                    <div id="name-left" class="mb-1 text-lg font-bold">대기 중...</div>
+                    <div class="relative w-full">
+                        <div class="w-full bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left" style="height:210px;">
+                            <span class="text-gray-500">No Image</span>
+                        </div>
+                        <div id="popup-left" class="absolute inset-0 pointer-events-none"></div>
+                    </div>
+                    <div class="relative w-full mt-2 h-6 bg-black/80 rounded border-2 border-gray-600 overflow-hidden">
+                        <div id="hp-left" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span id="hp-left-text" class="text-white font-black text-sm tracking-widest">100 / 100</span>
+                        </div>
+                    </div>
+                    <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-2 px-6 py-1 rounded font-bold border-2 border-gray-500 text-gray-300 hidden w-full text-sm">○ 레디</button>
+                    <div class="action-buttons grid grid-cols-2 gap-1 hidden w-full mt-1" id="btns-left">
+                        <button class="bg-red-600 py-1 rounded font-bold text-sm" onclick="selectAction('공격')">공격</button>
+                        <button class="bg-blue-600 py-1 rounded font-bold text-sm" onclick="selectAction('회피')">회피</button>
+                        <button class="bg-green-600 py-1 rounded font-bold text-sm" onclick="selectAction('방어')">방어</button>
+                        <button class="bg-gray-600 py-1 rounded font-bold text-sm" onclick="selectAction('도주')">도주</button>
                     </div>
                 </div>
-                <button id="ready-btn-left" onclick="toggleReady('left')" class="mt-2 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden w-full">
-                    ○ 레디
-                </button>
-                
-                <div class="action-buttons grid grid-cols-2 gap-2 hidden w-full mt-3" id="btns-left">
-                    <button class="bg-red-600 py-2 rounded font-bold" onclick="selectAction('공격')">공격</button>
-                    <button class="bg-blue-600 py-2 rounded font-bold" onclick="selectAction('회피')">회피</button>
-                    <button class="bg-green-600 py-2 rounded font-bold" onclick="selectAction('방어')">방어</button>
-                    <button class="bg-gray-600 py-2 rounded font-bold" onclick="selectAction('도주')">도주</button>
+
+                <div class="text-6xl font-black italic text-gray-400 self-center">VS</div>
+
+                <div id="team-right" class="flex flex-col items-center w-52">
+                    <div class="relative mb-2 w-full flex justify-center">
+                        <div class="dice-box" id="dice-right" onclick="rollDice('right')">?</div>
+                        <div id="first-badge-right" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg border border-green-400 whitespace-nowrap">선공</div>
+                    </div>
+                    <div id="name-right" class="mb-1 text-lg font-bold">대기 중...</div>
+                    <div class="relative w-full">
+                        <div class="w-full bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right" style="height:210px;">
+                            <span class="text-gray-500">No Image</span>
+                        </div>
+                        <div id="popup-right" class="absolute inset-0 pointer-events-none"></div>
+                    </div>
+                    <div class="relative w-full mt-2 h-6 bg-black/80 rounded border-2 border-gray-600 overflow-hidden">
+                        <div id="hp-right" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+                        <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span id="hp-right-text" class="text-white font-black text-sm tracking-widest">100 / 100</span>
+                        </div>
+                    </div>
+                    <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-2 px-6 py-1 rounded font-bold border-2 border-gray-500 text-gray-300 hidden w-full text-sm">○ 레디</button>
+                    <div class="action-buttons grid grid-cols-2 gap-1 hidden w-full mt-1" id="btns-right">
+                        <button class="bg-red-600 py-1 rounded font-bold text-sm" onclick="selectAction('공격')">공격</button>
+                        <button class="bg-blue-600 py-1 rounded font-bold text-sm" onclick="selectAction('회피')">회피</button>
+                        <button class="bg-green-600 py-1 rounded font-bold text-sm" onclick="selectAction('방어')">방어</button>
+                        <button class="bg-gray-600 py-1 rounded font-bold text-sm" onclick="selectAction('도주')">도주</button>
+                    </div>
                 </div>
             </div>
 
-            <div class="text-6xl font-black italic text-gray-400 self-center pt-10">VS</div>
+            <!-- 2vs2 -->
+            <div id="arena-2v2" class="hidden h-full flex justify-between items-start px-4 pt-2 gap-2">
 
-            <div id="team-right" class="flex flex-col items-center w-56"> <div class="relative mb-2 w-full flex justify-center">
-                    <div class="dice-box" id="dice-right" onclick="rollDice('right')">?</div>
-                    <div id="first-badge-right" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full shadow-lg border border-green-400 whitespace-nowrap">선공</div>
-                </div>
-                <div id="name-right" class="mb-1 text-xl font-bold text-red-400">대기 중...</div>
-                <div class="relative w-full flex justify-center">
-                    <div class="character-img bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden w-full" id="img-right">
-                        <span class="text-gray-500">No Image</span>
+                <!-- 왼팀 -->
+                <div class="flex flex-col items-center flex-1 gap-2">
+                    <div class="relative flex justify-center">
+                        <div class="dice-box" id="dice-left" onclick="rollDice('left')">?</div>
+                        <div id="first-badge-left" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full border border-green-400 whitespace-nowrap">선공</div>
                     </div>
-                    <div id="popup-right" class="absolute inset-0 pointer-events-none"></div>
-                </div>
-                <div class="relative w-full mt-3 h-8 bg-black/80 rounded border-2 border-gray-600 shadow-[0_0_10px_rgba(0,0,0,0.8)] overflow-hidden">
-                    <div id="hp-right" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
-                    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <span id="hp-right-text" class="text-white font-black text-lg tracking-widest">100 / 100</span>
+                    <button id="ready-btn-left" onclick="toggleReady2v2('left')" class="px-6 py-1 rounded font-bold border-2 border-gray-500 text-gray-300 text-sm hidden">○ 레디</button>
+                    <div class="flex gap-2 w-full justify-center">
+                        <!-- left_a -->
+                        <div class="flex flex-col items-center w-48">
+                            <div id="name-left_a" class="mb-1 text-sm font-bold truncate max-w-full">대기 중...</div>
+                            <div class="relative w-full">
+                                <div class="w-full bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left_a" style="height:192px;">
+                                    <span class="text-gray-500 text-xs">No Image</span>
+                                </div>
+                                <div id="popup-left_a" class="absolute inset-0 pointer-events-none"></div>
+                            </div>
+                            <div class="relative w-full mt-1 h-5 bg-black/80 rounded border border-gray-600 overflow-hidden">
+                                <div id="hp-left_a" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+                                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <span id="hp-left_a-text" class="text-white font-black text-xs">100</span>
+                                </div>
+                            </div>
+                            <div id="btns-left_a" class="hidden w-full mt-1 flex flex-col gap-1">
+                                <div class="grid grid-cols-2 gap-1">
+                                    <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
+                                    <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
+                                    <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
+                                    <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                </div>
+                                <div id="targets-left_a" class="hidden mt-1 flex flex-col gap-1">
+                                    <p class="text-xs text-yellow-300 text-center">타겟 선택</p>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('right_a')"><span id="target-name-right_a-for-left_a">상대 A</span></button>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('right_b')"><span id="target-name-right_b-for-left_a">상대 B</span></button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- left_b -->
+                        <div class="flex flex-col items-center w-48">
+                            <div id="name-left_b" class="mb-1 text-sm font-bold truncate max-w-full">대기 중...</div>
+                            <div class="relative w-full">
+                                <div class="w-full bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-left_b" style="height:192px;">
+                                    <span class="text-gray-500 text-xs">No Image</span>
+                                </div>
+                                <div id="popup-left_b" class="absolute inset-0 pointer-events-none"></div>
+                            </div>
+                            <div class="relative w-full mt-1 h-5 bg-black/80 rounded border border-gray-600 overflow-hidden">
+                                <div id="hp-left_b" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+                                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <span id="hp-left_b-text" class="text-white font-black text-xs">100</span>
+                                </div>
+                            </div>
+                            <div id="btns-left_b" class="hidden w-full mt-1 flex flex-col gap-1">
+                                <div class="grid grid-cols-2 gap-1">
+                                    <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
+                                    <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
+                                    <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
+                                    <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                </div>
+                                <div id="targets-left_b" class="hidden mt-1 flex flex-col gap-1">
+                                    <p class="text-xs text-yellow-300 text-center">타겟 선택</p>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('right_a')"><span id="target-name-right_a-for-left_b">상대 A</span></button>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('right_b')"><span id="target-name-right_b-for-left_b">상대 B</span></button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <button id="ready-btn-right" onclick="toggleReady('right')" class="mt-2 px-6 py-2 rounded font-bold border-2 border-gray-500 text-gray-300 hidden w-full">
-                    ○ 레디
-                </button>
-                
-                <div class="action-buttons grid grid-cols-2 gap-2 hidden w-full mt-3" id="btns-right">
-                    <button class="bg-red-600 py-2 rounded font-bold" onclick="selectAction('공격')">공격</button>
-                    <button class="bg-blue-600 py-2 rounded font-bold" onclick="selectAction('회피')">회피</button>
-                    <button class="bg-green-600 py-2 rounded font-bold" onclick="selectAction('방어')">방어</button>
-                    <button class="bg-gray-600 py-2 rounded font-bold" onclick="selectAction('도주')">도주</button>
+
+                <div class="text-4xl font-black italic text-gray-400 self-center flex-shrink-0">VS</div>
+
+                <!-- 오른팀 -->
+                <div class="flex flex-col items-center flex-1 gap-2">
+                    <div class="relative flex justify-center">
+                        <div class="dice-box" id="dice-right" onclick="rollDice('right')">?</div>
+                        <div id="first-badge-right" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full border border-green-400 whitespace-nowrap">선공</div>
+                    </div>
+                    <button id="ready-btn-right" onclick="toggleReady2v2('right')" class="px-6 py-1 rounded font-bold border-2 border-gray-500 text-gray-300 text-sm hidden">○ 레디</button>
+                    <div class="flex gap-2 w-full justify-center">
+                        <!-- right_a -->
+                        <div class="flex flex-col items-center w-48">
+                            <div id="name-right_a" class="mb-1 text-sm font-bold truncate max-w-full">대기 중...</div>
+                            <div class="relative w-full">
+                                <div class="w-full bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right_a" style="height:192px;">
+                                    <span class="text-gray-500 text-xs">No Image</span>
+                                </div>
+                                <div id="popup-right_a" class="absolute inset-0 pointer-events-none"></div>
+                            </div>
+                            <div class="relative w-full mt-1 h-5 bg-black/80 rounded border border-gray-600 overflow-hidden">
+                                <div id="hp-right_a" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+                                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <span id="hp-right_a-text" class="text-white font-black text-xs">100</span>
+                                </div>
+                            </div>
+                            <div id="btns-right_a" class="hidden w-full mt-1 flex flex-col gap-1">
+                                <div class="grid grid-cols-2 gap-1">
+                                    <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
+                                    <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
+                                    <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
+                                    <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                </div>
+                                <div id="targets-right_a" class="hidden mt-1 flex flex-col gap-1">
+                                    <p class="text-xs text-yellow-300 text-center">타겟 선택</p>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('left_a')"><span id="target-name-left_a-for-right_a">상대 A</span></button>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('left_b')"><span id="target-name-left_b-for-right_a">상대 B</span></button>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- right_b -->
+                        <div class="flex flex-col items-center w-48">
+                            <div id="name-right_b" class="mb-1 text-sm font-bold truncate max-w-full">대기 중...</div>
+                            <div class="relative w-full">
+                                <div class="w-full bg-gray-700 rounded-lg shadow-xl flex items-center justify-center overflow-hidden" id="img-right_b" style="height:192px;">
+                                    <span class="text-gray-500 text-xs">No Image</span>
+                                </div>
+                                <div id="popup-right_b" class="absolute inset-0 pointer-events-none"></div>
+                            </div>
+                            <div class="relative w-full mt-1 h-5 bg-black/80 rounded border border-gray-600 overflow-hidden">
+                                <div id="hp-right_b" class="absolute top-0 left-0 h-full bg-gradient-to-r from-red-700 to-red-400 transition-all duration-500 w-full"></div>
+                                <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                    <span id="hp-right_b-text" class="text-white font-black text-xs">100</span>
+                                </div>
+                            </div>
+                            <div id="btns-right_b" class="hidden w-full mt-1 flex flex-col gap-1">
+                                <div class="grid grid-cols-2 gap-1">
+                                    <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
+                                    <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
+                                    <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
+                                    <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                </div>
+                                <div id="targets-right_b" class="hidden mt-1 flex flex-col gap-1">
+                                    <p class="text-xs text-yellow-300 text-center">타겟 선택</p>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('left_a')"><span id="target-name-left_a-for-right_b">상대 A</span></button>
+                                    <button class="bg-orange-700 py-1 rounded text-xs" onclick="selectTarget2v2('left_b')"><span id="target-name-left_b-for-right_b">상대 B</span></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- 채팅창 (더 크게) -->
-        <div id="chat-area" class="mt-8 w-full bg-black/50 border-t border-gray-600 p-2 flex flex-col" style="min-height: 200px; max-height: 280px;">
-            <div id="chat-messages" class="flex-grow overflow-y-auto text-sm space-y-1 mb-2"></div>
-            <div class="flex gap-2">
+        <!-- 채팅창 — 화면 바닥에 고정 -->
+        <div id="chat-area" class="flex-shrink-0 w-full bg-black/50 border-t border-gray-600 p-2 flex flex-col" style="height:180px;">
+            <div id="chat-messages" class="flex-1 overflow-y-auto text-sm space-y-1 mb-2"></div>
+            <div class="flex gap-2 flex-shrink-0">
                 <input type="text" id="chat-input" class="flex-grow bg-gray-800 border-none px-3 py-1 text-sm outline-none" placeholder="메시지를 입력하세요...">
-                <button onclick="sendChat()" class="bg-yellow-600 px-4 text-sm font-bold">전송</button>
+                <button onclick="sendChat()" class="px-4 text-sm font-bold">전송</button>
             </div>
         </div>
     </div>
@@ -269,8 +415,24 @@
         </div>
     </div>
 
-    <div id="ready-overlay" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden">
+    <!-- 2vs2 팀 선택 모달 -->
+    <div id="team-select-modal" class="fixed inset-0 bg-black/80 flex items-center justify-center hidden z-50">
+        <div class="bg-[#2d3d2d] border-2 border-[#89b38c] rounded-2xl p-8 w-80 flex flex-col gap-5 text-center shadow-2xl">
+            <h3 class="text-xl font-bold border-b border-[#89b38c] pb-3">어느 팀으로 참가할까요?</h3>
+            <p id="team-select-room-info" class="text-sm text-gray-300"></p>
+            <div class="flex gap-3">
+                <button onclick="confirmTeamSelect('left')"
+                    class="flex-1 py-4 rounded-xl font-bold text-lg border-2 border-[#57825a] bg-[#57825a]/40 hover:bg-[#57825a] transition">
+                    ◀ 왼팀
+                </button>
+                <button onclick="confirmTeamSelect('right')"
+                    class="flex-1 py-4 rounded-xl font-bold text-lg border-2 border-[#57825a] bg-[#57825a]/40 hover:bg-[#57825a] transition">
+                    오른팀 ▶
+                </button>
+            </div>
+            <button onclick="closeTeamSelectModal()" class="text-gray-400 hover:text-white text-sm underline">취소</button>
         </div>
+    </div>
 
     <div id="result-overlay" class="fixed inset-0 bg-black/90 flex items-center justify-center hidden z-50">
         <div class="bg-[#2d3d2d] border-2 border-light-green p-8 rounded-2xl w-96 text-center shadow-2xl">
