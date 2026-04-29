@@ -546,7 +546,7 @@ function updateUI2v2(data,side,phase,status){
     });
     // 다이스·배지
     ['left','right'].forEach(s=>{
-        const dBox=document.getElementById(`dice-${s}`),badge=document.getElementById(`first-badge-${s}`);
+        const dBox=document.getElementById(`dice-${s}-2v2`),badge=document.getElementById(`first-badge-${s}-2v2`);
         if(!dBox||!badge) return;
         if(data.isDetermined){dBox.style.display='none';badge.classList.toggle('hidden',data.turnFirst!==s);}
         else{dBox.style.display='';dBox.style.opacity=status==='fighting'?'1':'0.35';dBox.style.cursor=status==='fighting'?'pointer':'not-allowed';dBox.innerText=data[`dice_${s}`]>0?data[`dice_${s}`]:'?';if(data[`dice_${s}`]>0)dBox.classList.remove('dice-rolling');badge.classList.add('hidden');}
@@ -554,9 +554,19 @@ function updateUI2v2(data,side,phase,status){
     // 레디
     const allJoined=data.name_left_a&&data.name_left_b&&data.name_right_a&&data.name_right_b;
     ['left','right'].forEach(ts=>{
-        const btn=document.getElementById(`ready-btn-${ts}`); if(!btn) return;
-        if(allJoined&&status==="waiting"&&teamOf(side)===ts){btn.classList.remove('hidden');const r=data[`ready_${ts}`];btn.textContent=r?'준비 완료':'준비';btn.style.borderColor=r?'#57825a':'';btn.style.color=r?'#89b38c':'';}
-        else btn.classList.add('hidden');
+        const btn=document.getElementById(`ready-btn-${ts}-2v2`); if(!btn) return;
+        if(allJoined&&status==="waiting"&&(teamOf(side)===ts||side==='admin')){
+            btn.classList.remove('hidden');
+            const r=data[`ready_${ts}`];
+            btn.textContent=r?'준비 완료':'준비';
+            btn.style.borderColor=r?'#57825a':'';
+            btn.style.color=r?'#89b38c':'';
+            // 관리자는 클릭 비활성 (관전만)
+            btn.disabled = side==='admin';
+            btn.style.opacity = side==='admin'?'0.5':'1';
+        } else {
+            btn.classList.add('hidden');
+        }
     });
     // 레디 오버레이
     const bothReady=allJoined&&data.ready_left&&data.ready_right;
