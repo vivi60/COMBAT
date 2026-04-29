@@ -157,14 +157,25 @@ async function toggleReady(side) {
 }
 
 // ═══════════════════════════════════════════
-// [레디] 2vs2
+// [레디] 2vs2 - 개인별
 // ═══════════════════════════════════════════
-async function toggleReady2v2(teamSide) {
-    if (teamOf(myProfile.side) !== teamSide || !currentRoomId) return;
+async function toggleReady2v2(slot) {
+    // slot: 'left_a', 'left_b', 'right_a', 'right_b'
+    if (myProfile.side !== slot || !currentRoomId) return;
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
     const snap = await window.dbUtils.getDoc(roomRef);
     if (!snap.exists()) return;
-    await window.dbUtils.updateDoc(roomRef, { [`ready_${teamSide}`]: !snap.data()[`ready_${teamSide}`] });
+    const cur = snap.data()[`ready_${slot}`] || false;
+    // 팀 전체 레디 여부도 동시 업데이트
+    const teamSide = teamOf(slot);
+    const partnerSlot = slot.endsWith('_a') ? slot.replace('_a','_b') : slot.replace('_b','_a');
+    const partnerReady = snap.data()[`ready_${partnerSlot}`] || false;
+    const newVal = !cur;
+    const teamReady = newVal && partnerReady;
+    await window.dbUtils.updateDoc(roomRef, {
+        [`ready_${slot}`]: newVal,
+        [`ready_${teamSide}`]: teamReady
+    });
 }
 
 // ═══════════════════════════════════════════
@@ -276,17 +287,37 @@ async function commitAction2v2(slot, action, target) {
             if (!['turn_a','turn_b'].includes(d.phase)) throw new Error("페이즈 오류");
             if (d[`action_${slot}`]) throw new Error("이미_선택");
             if (myTeam !== d.turnFirst) throw new Error("상대팀_차례");
+
             const partnerSlot = slot.endsWith('_a') ? slot.replace('_a','_b') : slot.replace('_b','_a');
             const partnerDone = !!d[`action_${partnerSlot}`];
             const update = { [`action_${slot}`]:action, [`target_${slot}`]:target };
+
             if (partnerDone) {
+                // 내 팀 두 명 모두 완료
                 update[`${myTeam}_done`] = true;
-                update.messages = window.dbUtils.arrayUnion({ sender:"시스템", text:`${myTeam==='left'?'왼팀':'오른팀'} 행동 완료!`, timestamp:Date.now() });
+                update.messages = window.dbUtils.arrayUnion({
+                    sender:"시스템",
+                    text:`${myTeam==='left'?'왼팀':'오른팀'} 행동 완료!`,
+                    timestamp:Date.now()
+                });
+
+                if (d.phase === 'turn_a') {
+                    // turn_a: 선공팀 완료 → 후공팀 차례로 넘김 (resolve 아님)
+                    const secondTeam = myTeam==='left'?'right':'left';
+                    update.phase = 'turn_b';
+                    update.turnFirst = secondTeam;
+                    update.messages = window.dbUtils.arrayUnion({
+                        sender:"시스템",
+                        text:`${myTeam==='left'?'왼팀':'오른팀'} 행동 완료! ↩️ ${secondTeam==='left'?'왼팀':'오른팀'} 차례`,
+                        timestamp:Date.now()
+                    });
+                } else {
+                    // turn_b: 후공팀 완료 → 결산
+                    shouldResolve = true;
+                    resolveData = { ...d, [`action_${slot}`]:action, [`target_${slot}`]:target };
+                }
             }
             tx.update(roomRef, update);
-            const secondTeam = myTeam==='left'?'right':'left';
-            const secDone = !!d[`action_${secondTeam}_a`] && !!d[`action_${secondTeam}_b`];
-            if (partnerDone && secDone) { shouldResolve=true; resolveData={ ...d, [`action_${slot}`]:action, [`target_${slot}`]:target }; }
         });
     } catch(e) {
         if (e.message==="이미_선택")   { alert("이미 행동을 선택했습니다!"); return; }
@@ -294,7 +325,11 @@ async function commitAction2v2(slot, action, target) {
         console.error("commitAction2v2 오류:", e); return;
     }
     const btns = document.getElementById(`btns-${slot}`);
-    if (btns) btns.querySelectorAll('button').forEach(b => { b.disabled=true; b.style.opacity=b.textContent.trim()===action?'1':'0.3'; });
+    if (btns) btns.querySelectorAll('button').forEach(b => {
+        b.disabled=true;
+        b.style.opacity=b.textContent.trim()===action?'1':'0.3';
+        b.style.outline=b.textContent.trim()===action?'3px solid white':'';
+    });
     if (shouldResolve && resolveData) await resolveTurn2v2(resolveData, roomRef);
 }
 
@@ -388,9 +423,11 @@ async function resolveTurn(data, roomRef) {
 // ═══════════════════════════════════════════
 async function resolveTurn2v2(data, roomRef) {
     const slots=['left_a','left_b','right_a','right_b'];
-    const ts=Date.now(), round=data.currentRound||1, phase=data.phase;
-    const firstTeam=data.turnFirst, secondTeam=firstTeam==='left'?'right':'left';
-    const ordered=[`${firstTeam}_a`,`${firstTeam}_b`,`${secondTeam}_a`,`${secondTeam}_b`];
+    const ts=Date.now(), round=data.currentRound||1;
+    // turn_b 종료 시 호출되므로 firstSide 기준으로 순서 정렬
+    const origFirst = data.firstSide || data.turnFirst;
+    const origSecond = origFirst==='left'?'right':'left';
+    const ordered=[`${origFirst}_a`,`${origFirst}_b`,`${origSecond}_a`,`${origSecond}_b`];
     let hp={}; slots.forEach(s=>{hp[s]=data[`hp_${s}`]??100;});
     const logs=[], motions=[], icon={'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
 
@@ -412,10 +449,16 @@ async function resolveTurn2v2(data, roomRef) {
     }
 
     const lA=hp['left_a']>0||hp['left_b']>0, rA=hp['right_a']>0||hp['right_b']>0;
-    const isGameOver=(!lA||!rA)||(phase==='turn_b'&&round>=5);
+    const isGameOver=(!lA||!rA)||(round>=5);
     const motionId=ts;
     let resultMsg=[]; logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
-    const updBase={hp_left_a:hp['left_a'],hp_left_b:hp['left_b'],hp_right_a:hp['right_a'],hp_right_b:hp['right_b'],action_left_a:"",action_left_b:"",action_right_a:"",action_right_b:"",target_left_a:"",target_left_b:"",target_right_a:"",target_right_b:"",left_done:false,right_done:false,lastMotions:motions,lastMotionId:motionId};
+    const updBase={
+        hp_left_a:hp['left_a'],hp_left_b:hp['left_b'],hp_right_a:hp['right_a'],hp_right_b:hp['right_b'],
+        action_left_a:"",action_left_b:"",action_right_a:"",action_right_b:"",
+        target_left_a:"",target_left_b:"",target_right_a:"",target_right_b:"",
+        left_done:false,right_done:false,
+        lastMotions:motions,lastMotionId:motionId
+    };
 
     if (isGameOver) {
         const ls=hp['left_a']+hp['left_b'], rs=hp['right_a']+hp['right_b'];
@@ -428,15 +471,16 @@ async function resolveTurn2v2(data, roomRef) {
         else endText="⚡ 5라운드 — 무승부!";
         resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
         await window.dbUtils.updateDoc(roomRef,{...updBase,status:"ended",messages:window.dbUtils.arrayUnion(...resultMsg)});
-    } else if(phase==='turn_a') {
-        const newF=firstTeam==='left'?'right':'left';
-        resultMsg.push({sender:"시스템",text:`↩️ 선후공 교체 — ${newF==='left'?'왼팀':'오른팀'} 먼저!`,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{...updBase,phase:"turn_b",turnFirst:newF,messages:window.dbUtils.arrayUnion(...resultMsg)});
     } else {
-        const nextRound=round+1, orig=data.firstSide;
-        const nextFirst=(nextRound%2===1)?orig:(orig==='left'?'right':'left');
+        // 다음 라운드 — 홀수 라운드는 원래 선공, 짝수는 반대
+        const nextRound=round+1;
+        const nextFirst=(nextRound%2===1)?origFirst:origSecond;
         resultMsg.push({sender:"시스템",text:`— ROUND ${nextRound} 시작 — ${nextFirst==='left'?'왼팀':'오른팀'} 선공`,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{...updBase,currentRound:nextRound,phase:"turn_a",turnFirst:nextFirst,messages:window.dbUtils.arrayUnion(...resultMsg)});
+        await window.dbUtils.updateDoc(roomRef,{
+            ...updBase,
+            currentRound:nextRound, phase:"turn_a", turnFirst:nextFirst,
+            messages:window.dbUtils.arrayUnion(...resultMsg)
+        });
     }
 }
 
@@ -551,19 +595,18 @@ function updateUI2v2(data,side,phase,status){
         if(data.isDetermined){dBox.style.display='none';badge.classList.toggle('hidden',data.turnFirst!==s);}
         else{dBox.style.display='';dBox.style.opacity=status==='fighting'?'1':'0.35';dBox.style.cursor=status==='fighting'?'pointer':'not-allowed';dBox.innerText=data[`dice_${s}`]>0?data[`dice_${s}`]:'?';if(data[`dice_${s}`]>0)dBox.classList.remove('dice-rolling');badge.classList.add('hidden');}
     });
-    // 레디
+    // 레디 — 개인별
     const allJoined=data.name_left_a&&data.name_left_b&&data.name_right_a&&data.name_right_b;
-    ['left','right'].forEach(ts=>{
-        const btn=document.getElementById(`ready-btn-${ts}-2v2`); if(!btn) return;
-        if(allJoined&&status==="waiting"&&(teamOf(side)===ts||side==='admin')){
+    const slots2v2Ready=['left_a','left_b','right_a','right_b'];
+    slots2v2Ready.forEach(s=>{
+        const btn=document.getElementById(`ready-btn-${s}`); if(!btn) return;
+        if(allJoined&&status==="waiting"&&side===s){
             btn.classList.remove('hidden');
-            const r=data[`ready_${ts}`];
-            btn.textContent=r?'준비 완료':'준비';
+            const r=data[`ready_${s}`]||false;
+            btn.textContent=r?'✔ 준비완료':'○ 준비';
             btn.style.borderColor=r?'#57825a':'';
             btn.style.color=r?'#89b38c':'';
-            // 관리자는 클릭 비활성 (관전만)
-            btn.disabled = side==='admin';
-            btn.style.opacity = side==='admin'?'0.5':'1';
+            btn.disabled=false; btn.style.opacity='1';
         } else {
             btn.classList.add('hidden');
         }

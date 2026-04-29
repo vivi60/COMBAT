@@ -253,7 +253,7 @@
             </div>
 
             <!-- 2vs2 -->
-            <div id="arena-2v2" class="hidden h-full flex justify-between items-start px-4 pt-2 gap-2">
+            <div id="arena-2v2" class="hidden h-full flex justify-between items-end px-4 pb-2 gap-2">
 
                 <!-- 왼팀 -->
                 <div class="flex flex-col items-center flex-1 gap-2">
@@ -261,7 +261,7 @@
                         <div class="dice-box" id="dice-left-2v2" onclick="rollDice('left')">?</div>
                         <div id="first-badge-left-2v2" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full border border-green-400 whitespace-nowrap">선공</div>
                     </div>
-                    <button id="ready-btn-left-2v2" onclick="toggleReady2v2('left')" class="px-6 py-1 rounded font-bold border-2 border-gray-500 text-gray-300 text-sm hidden">○ 레디</button>
+                    
                     <div class="flex gap-2 w-full justify-center">
                         <!-- left_a -->
                         <div class="flex flex-col items-center w-48">
@@ -278,6 +278,7 @@
                                     <span id="hp-left_a-text" class="text-white font-black text-xs">100</span>
                                 </div>
                             </div>
+                            <button id="ready-btn-left_a" onclick="toggleReady2v2('left_a')" class="hidden w-full mt-1 py-1 rounded text-xs font-bold border-2 border-gray-500 text-gray-300">○ 준비</button>
                             <div id="btns-left_a" class="hidden w-full mt-1 flex flex-col gap-1">
                                 <div class="grid grid-cols-2 gap-1">
                                     <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
@@ -307,6 +308,7 @@
                                     <span id="hp-left_b-text" class="text-white font-black text-xs">100</span>
                                 </div>
                             </div>
+                            <button id="ready-btn-left_b" onclick="toggleReady2v2('left_b')" class="hidden w-full mt-1 py-1 rounded text-xs font-bold border-2 border-gray-500 text-gray-300">○ 준비</button>
                             <div id="btns-left_b" class="hidden w-full mt-1 flex flex-col gap-1">
                                 <div class="grid grid-cols-2 gap-1">
                                     <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
@@ -332,7 +334,7 @@
                         <div class="dice-box" id="dice-right-2v2" onclick="rollDice('right')">?</div>
                         <div id="first-badge-right-2v2" class="hidden absolute -top-3 -right-6 bg-green-600 text-white text-xs font-black px-2 py-1 rounded-full border border-green-400 whitespace-nowrap">선공</div>
                     </div>
-                    <button id="ready-btn-right-2v2" onclick="toggleReady2v2('right')" class="px-6 py-1 rounded font-bold border-2 border-gray-500 text-gray-300 text-sm hidden">○ 레디</button>
+                    
                     <div class="flex gap-2 w-full justify-center">
                         <!-- right_a -->
                         <div class="flex flex-col items-center w-48">
@@ -349,6 +351,7 @@
                                     <span id="hp-right_a-text" class="text-white font-black text-xs">100</span>
                                 </div>
                             </div>
+                            <button id="ready-btn-right_a" onclick="toggleReady2v2('right_a')" class="hidden w-full mt-1 py-1 rounded text-xs font-bold border-2 border-gray-500 text-gray-300">○ 준비</button>
                             <div id="btns-right_a" class="hidden w-full mt-1 flex flex-col gap-1">
                                 <div class="grid grid-cols-2 gap-1">
                                     <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
@@ -378,6 +381,7 @@
                                     <span id="hp-right_b-text" class="text-white font-black text-xs">100</span>
                                 </div>
                             </div>
+                            <button id="ready-btn-right_b" onclick="toggleReady2v2('right_b')" class="hidden w-full mt-1 py-1 rounded text-xs font-bold border-2 border-gray-500 text-gray-300">○ 준비</button>
                             <div id="btns-right_b" class="hidden w-full mt-1 flex flex-col gap-1">
                                 <div class="grid grid-cols-2 gap-1">
                                     <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
