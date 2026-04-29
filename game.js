@@ -74,16 +74,17 @@ function openTeamSelectModal(roomId, roomName) {
     modal.style.display = 'flex';
 }
 function closeTeamSelectModal() {
-    _pendingRoomId = "";
     const modal = document.getElementById('team-select-modal');
     modal.style.display = 'none';
+    // _pendingRoomId는 confirmTeamSelect에서만 초기화
 }
 async function confirmTeamSelect(teamSide) {
     if (!_pendingRoomId) return;
-    const roomId = _pendingRoomId; _pendingRoomId = "";
+    const roomId = _pendingRoomId;
+    _pendingRoomId = "";
     closeTeamSelectModal();
     const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", roomId));
-    if (!snap.exists()) return;
+    if (!snap.exists()) { alert("방을 찾을 수 없습니다."); return; }
     const sd = snap.data();
     const slots = teamSide === 'left' ? ['left_a','left_b'] : ['right_a','right_b'];
     const emptySlot = slots.find(s => !sd[`name_${s}`]?.trim());

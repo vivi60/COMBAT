@@ -193,6 +193,13 @@ body {
     font-size: 1.2rem;
 }
 
+/* 2vs2 캐릭터 이름 */
+#name-left_a, #name-left_b, #name-right_a, #name-right_b {
+    color: #57825a !important;
+    -webkit-text-stroke: 0.5px #3d5c3f;
+    font-weight: 800;
+}
+
 /* 채팅 전송 버튼 */
 #chat-area button {
     background-color: var(--main-green) !important;
