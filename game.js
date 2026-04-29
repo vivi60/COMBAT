@@ -237,43 +237,78 @@ async function selectAction(action) {
 // ═══════════════════════════════════════════
 // [전투] 2vs2 행동 선택
 // ═══════════════════════════════════════════
-async function selectAction2v2(action) {
-    if (!currentRoomId) return;
-    const slot = myProfile.side;
-    if (!is2v2Side(slot)) return;
+async function selectAction2v2(slot, action) {
+    // slot: 'left_a' 등, action: '공격'|'방어'|'회피'|'도주'
+    if (!currentRoomId || myProfile.side !== slot) return;
+
     if (action === '도주') {
         const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", currentRoomId));
         if (snap.exists() && (snap.data().currentRound||1) < 3) { alert("도주는 3라운드부터 가능합니다!"); return; }
+        await commitAction2v2(slot, action, "");
+        return;
     }
-    if (action === '공격') { _pendingAction2v2 = action; showTargetPanel(slot, true); return; }
-    await commitAction2v2(slot, action, "");
+    if (action === '회피') {
+        await commitAction2v2(slot, action, "");
+        return;
+    }
+    if (action === '공격') {
+        _pendingAction2v2 = '공격';
+        showPanel(`atk-targets-${slot}`, true);
+        return;
+    }
+    if (action === '방어') {
+        _pendingAction2v2 = '방어';
+        // 방어 대상 버튼 이름 업데이트
+        const shortMap = {'left_a':'la','left_b':'lb','right_a':'ra','right_b':'rb'};
+        const ms = shortMap[slot];
+        const allies = teamOf(slot)==='left'
+            ? [['la','left_a'], ['lb','left_b']]
+            : [['ra','right_a'], ['rb','right_b']];
+        allies.forEach(([ashort, aslot]) => {
+            const nameEl = document.getElementById(`name-${aslot}`);
+            const tEl = document.getElementById(`dname-${ashort}-${ms}`);
+            if (tEl && nameEl) tEl.innerText = aslot === slot ? `${nameEl.innerText}(나)` : nameEl.innerText;
+        });
+        showPanel(`def-targets-${slot}`, true);
+        return;
+    }
+}
+
+function showPanel(panelId, show) {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    panel.classList.toggle('hidden', !show);
 }
 
 function showTargetPanel(slot, show) {
-    const panel = document.getElementById(`targets-${slot}`);
-    if (!panel) return;
-    panel.classList.toggle('hidden', !show);
+    // legacy — 이제 showPanel 직접 사용
+    showPanel(`atk-targets-${slot}`, show);
     if (show) {
-        // ID 패턴: tname-{enemyShort}-{myShort}
-        // slot: left_a → myShort = la, left_b → lb, right_a → ra, right_b → rb
-        const shortMap = { 'left_a':'la','left_b':'lb','right_a':'ra','right_b':'rb' };
-        const myShort = shortMap[slot];
-        const enemies = teamOf(slot)==='left' ? ['right_a','right_b'] : ['left_a','left_b'];
-        enemies.forEach(es => {
-            const nameEl = document.getElementById(`name-${es}`);
-            const eShort = shortMap[es];
-            const tEl = document.getElementById(`tname-${eShort}-${myShort}`);
-            if (tEl && nameEl) tEl.innerText = nameEl.innerText || es;
+        const shortMap = {'left_a':'la','left_b':'lb','right_a':'ra','right_b':'rb'};
+        const ms = shortMap[slot];
+        const enemies = teamOf(slot)==='left' ? [['ra','right_a'],['rb','right_b']] : [['la','left_a'],['lb','left_b']];
+        enemies.forEach(([eshort, eslot]) => {
+            const nameEl = document.getElementById(`name-${eslot}`);
+            const tEl = document.getElementById(`tname-${eshort}-${ms}`);
+            if (tEl && nameEl) tEl.innerText = nameEl.innerText || eslot;
         });
     }
 }
 
 async function selectTarget2v2(targetSlot) {
-    if (!_pendingAction2v2) return;
+    if (_pendingAction2v2 !== '공격') return;
     const slot = myProfile.side;
-    showTargetPanel(slot, false);
-    const action = _pendingAction2v2; _pendingAction2v2 = null;
-    await commitAction2v2(slot, action, targetSlot);
+    showPanel(`atk-targets-${slot}`, false);
+    _pendingAction2v2 = null;
+    await commitAction2v2(slot, '공격', targetSlot);
+}
+
+async function selectDefendTarget2v2(targetSlot) {
+    if (_pendingAction2v2 !== '방어') return;
+    const slot = myProfile.side;
+    showPanel(`def-targets-${slot}`, false);
+    _pendingAction2v2 = null;
+    await commitAction2v2(slot, '방어', targetSlot);
 }
 
 async function commitAction2v2(slot, action, target) {
@@ -421,68 +456,145 @@ async function resolveTurn(data, roomRef) {
 }
 
 // ═══════════════════════════════════════════
-// [전투] 2vs2 턴 결산
+// [전투] 2vs2 턴 결산 — 공격 합산, 방어 합산
 // ═══════════════════════════════════════════
 async function resolveTurn2v2(data, roomRef) {
-    const slots=['left_a','left_b','right_a','right_b'];
-    const ts=Date.now(), round=data.currentRound||1;
-    // turn_b 종료 시 호출되므로 firstSide 기준으로 순서 정렬
-    const origFirst = data.firstSide || data.turnFirst;
-    const origSecond = origFirst==='left'?'right':'left';
-    const ordered=[`${origFirst}_a`,`${origFirst}_b`,`${origSecond}_a`,`${origSecond}_b`];
-    let hp={}; slots.forEach(s=>{hp[s]=data[`hp_${s}`]??100;});
-    const logs=[], motions=[], icon={'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
+    const slots = ['left_a','left_b','right_a','right_b'];
+    const ts = Date.now(), round = data.currentRound || 1;
+    const origFirst  = data.firstSide || data.turnFirst;
+    const origSecond = origFirst === 'left' ? 'right' : 'left';
+    const ordered = [`${origFirst}_a`,`${origFirst}_b`,`${origSecond}_a`,`${origSecond}_b`];
 
-    for (const attacker of ordered) {
-        const action=data[`action_${attacker}`], target=data[`target_${attacker}`];
-        const aName=(data[`name_${attacker}`]||'').split('|')[0]||attacker;
-        const tName=target?(data[`name_${target}`]||'').split('|')[0]||target:'';
-        if (!action) continue;
-        if (hp[attacker]<=0){logs.push(`${aName}: 전투 불능`);continue;}
-        if (action==='공격'&&target) {
-            if(hp[target]<=0){logs.push(`${aName} → ${tName}: 이미 쓰러짐`);continue;}
-            const tAct=data[`action_${target}`], atk=rollAttack();
-            if(tAct==='방어'){const def=rollDefense(),dmg=Math.max(0,atk-def);hp[target]=Math.max(0,hp[target]-dmg);motions.push({side:attacker,anim:'attack'},{side:target,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});logs.push(`${icon['공격']} ${aName}→${tName}: 공격${atk}-방어${def}=${dmg}데미지`);}
-            else if(tAct==='회피'){const dodged=Math.random()<0.5;motions.push({side:attacker,anim:'attack'},{side:target,anim:'dodge',popup:dodged?'회피!':` -${atk}`,popupType:dodged?'miss':'damage'});if(dodged)logs.push(`${icon['공격']} ${aName}→${tName}: 회피 성공!`);else{hp[target]=Math.max(0,hp[target]-atk);logs.push(`${icon['공격']} ${aName}→${tName}: 회피 실패! -${atk}HP`);}}
-            else{hp[target]=Math.max(0,hp[target]-atk);motions.push({side:attacker,anim:'attack'},{side:target,anim:'hit',popup:`-${atk}`,popupType:'damage'});logs.push(`${icon['공격']} ${aName}→${tName}: ${atk}데미지`);}
-        } else if(action==='도주'){const esc=Math.random()<0.5;motions.push({side:attacker,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});if(esc){hp[attacker]=0;logs.push(`🏃 ${aName}: 도주 성공`);}else logs.push(`🏃 ${aName}: 도주 실패`);
-        } else if(action==='방어'){motions.push({side:attacker,anim:'defend'});}
-        else if(action==='회피'){motions.push({side:attacker,anim:'dodge'});}
+    let hp = {};
+    slots.forEach(s => { hp[s] = data[`hp_${s}`] ?? 100; });
+
+    const logs = [], motions = [];
+    const icon = {'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
+    const name = s => (data[`name_${s}`]||'').split('|')[0] || s;
+
+    // ─ 1단계: 도주 처리 (선공 순서대로)
+    for (const s of ordered) {
+        const act = data[`action_${s}`];
+        if (act !== '도주') continue;
+        if (hp[s] <= 0) continue;
+        const esc = Math.random() < 0.5;
+        motions.push({ side:s, anim:'flee', popup: esc?'도주!':'실패!', popupType:'flee' });
+        if (esc) { hp[s] = 0; logs.push(`🏃 ${name(s)}: 도주 성공 — 전투 이탈`); }
+        else logs.push(`🏃 ${name(s)}: 도주 실패`);
     }
 
-    const lA=hp['left_a']>0||hp['left_b']>0, rA=hp['right_a']>0||hp['right_b']>0;
-    const isGameOver=(!lA||!rA)||(round>=5);
-    const motionId=ts;
-    let resultMsg=[]; logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
-    const updBase={
-        hp_left_a:hp['left_a'],hp_left_b:hp['left_b'],hp_right_a:hp['right_a'],hp_right_b:hp['right_b'],
-        action_left_a:"",action_left_b:"",action_right_a:"",action_right_b:"",
-        target_left_a:"",target_left_b:"",target_right_a:"",target_right_b:"",
-        left_done:false,right_done:false,
-        lastMotions:motions,lastMotionId:motionId
+    // ─ 2단계: 각 타겟별로 공격 합산 & 방어 합산 계산
+    // 공격자 목록: action=공격, target=타겟슬롯, 살아있음
+    const attackers = ordered.filter(s => data[`action_${s}`]==='공격' && data[`target_${s}`] && hp[s]>0);
+    // 방어자 목록: action=방어, target=지키려는 슬롯 (자신 또는 팀원)
+    const defenders = slots.filter(s => data[`action_${s}`]==='방어' && hp[s]>0);
+
+    // 타겟별로 그룹화
+    const attacksByTarget = {};
+    attackers.forEach(atk => {
+        const tgt = data[`target_${atk}`];
+        if (!attacksByTarget[tgt]) attacksByTarget[tgt] = [];
+        attacksByTarget[tgt].push(atk);
+    });
+
+    // 각 타겟에 대한 처리
+    for (const tgt of slots) {
+        const atkGroup = attacksByTarget[tgt] || [];
+        if (atkGroup.length === 0) continue;
+        if (hp[tgt] <= 0) {
+            atkGroup.forEach(a => logs.push(`${icon['공격']} ${name(a)} → ${name(tgt)}: 이미 쓰러짐`));
+            continue;
+        }
+
+        // 이 타겟을 회피 중인지
+        const tgtAction = data[`action_${tgt}`];
+        const tgtDefTarget = data[`target_${tgt}`]; // 방어 시 자기자신 지키면 tgt===tgt
+
+        // 공격 합산
+        let totalAtk = 0;
+        const atkRolls = [];
+        atkGroup.forEach(a => {
+            const r = rollAttack();
+            totalAtk += r;
+            atkRolls.push(`${name(a)}:${r}`);
+            motions.push({ side:a, anim:'attack' });
+        });
+
+        // 이 타겟을 방어하는 방어자들 (target이 tgt인 defender)
+        const defGroup = defenders.filter(d => data[`target_${d}`] === tgt && hp[d] > 0);
+
+        if (tgtAction === '회피') {
+            // 회피: 타겟이 회피 선택 → 50% 성공
+            const dodged = Math.random() < 0.5;
+            motions.push({ side:tgt, anim:'dodge', popup: dodged?'회피!':'실패!', popupType: dodged?'miss':'damage' });
+            if (dodged) {
+                logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 성공! (${atkRolls.join('+')})`);
+            } else {
+                hp[tgt] = Math.max(0, hp[tgt] - totalAtk);
+                motions.push({ side:tgt, anim:'hit', popup:`-${totalAtk}`, popupType:'damage' });
+                logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 실패! -${totalAtk}HP (${atkRolls.join('+')})`);
+            }
+        } else if (defGroup.length > 0 || tgtAction === '방어' && tgtDefTarget === tgt) {
+            // 방어: defGroup = 이 타겟을 지키는 방어자들
+            // (타겟 자신이 방어했다면 자동으로 포함됨 — defGroup에 이미 들어있음)
+            let totalDef = 0;
+            const defRolls = [];
+            defGroup.forEach(d => {
+                const r = rollDefense();
+                totalDef += r;
+                defRolls.push(`${name(d)}:${r}`);
+                motions.push({ side:d, anim:'defend' });
+            });
+            const dmg = Math.max(0, totalAtk - totalDef);
+            hp[tgt] = Math.max(0, hp[tgt] - dmg);
+            if (dmg > 0) {
+                motions.push({ side:tgt, anim:'hit', popup:`-${dmg}`, popupType:'damage' });
+                logs.push(`${icon['공격']} [공격 ${atkRolls.join('+')}=${totalAtk}] - [방어 ${defRolls.join('+')}=${totalDef}] = ${dmg} 데미지 → ${name(tgt)}`);
+            } else {
+                motions.push({ side:tgt, anim:'defend', popup:'막음!', popupType:'defend' });
+                logs.push(`${icon['방어']} [방어 ${defRolls.join('+')}=${totalDef}] vs [공격 ${totalAtk}] → 완전히 막아냄!`);
+            }
+        } else {
+            // 방어/회피 없음 — 직접 피격
+            hp[tgt] = Math.max(0, hp[tgt] - totalAtk);
+            motions.push({ side:tgt, anim:'hit', popup:`-${totalAtk}`, popupType:'damage' });
+            logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: -${totalAtk}HP (${atkRolls.join('+')})`);
+        }
+    }
+
+    const lA = hp['left_a'] > 0 || hp['left_b'] > 0;
+    const rA = hp['right_a'] > 0 || hp['right_b'] > 0;
+    const isGameOver = (!lA || !rA) || (round >= 5);
+    const motionId = ts;
+
+    let resultMsg = [];
+    logs.forEach((l,i) => resultMsg.push({ sender:"시스템", text:l, timestamp:ts+i }));
+
+    const updBase = {
+        hp_left_a:hp['left_a'], hp_left_b:hp['left_b'],
+        hp_right_a:hp['right_a'], hp_right_b:hp['right_b'],
+        action_left_a:"", action_left_b:"", action_right_a:"", action_right_b:"",
+        target_left_a:"", target_left_b:"", target_right_a:"", target_right_b:"",
+        left_done:false, right_done:false,
+        lastMotions:motions, lastMotionId:motionId
     };
 
     if (isGameOver) {
-        const ls=hp['left_a']+hp['left_b'], rs=hp['right_a']+hp['right_b'];
-        let endText="";
-        if(!lA&&!rA)endText="⚡ 양팀 동시 전투 불능! 무승부!";
-        else if(!lA){endText="🏆 오른팀 승리!";motions.push({side:'right_a',popup:'승리!',popupType:'win'},{side:'right_b',popup:'승리!',popupType:'win'});}
-        else if(!rA){endText="🏆 왼팀 승리!";motions.push({side:'left_a',popup:'승리!',popupType:'win'},{side:'left_b',popup:'승리!',popupType:'win'});}
-        else if(ls>rs){endText=`🏆 5라운드 — 왼팀 승리! (${ls} vs ${rs})`;motions.push({side:'left_a',popup:'승리!',popupType:'win'});}
-        else if(rs>ls){endText=`🏆 5라운드 — 오른팀 승리! (${ls} vs ${rs})`;motions.push({side:'right_a',popup:'승리!',popupType:'win'});}
-        else endText="⚡ 5라운드 — 무승부!";
-        resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{...updBase,status:"ended",messages:window.dbUtils.arrayUnion(...resultMsg)});
+        const ls = hp['left_a'] + hp['left_b'], rs = hp['right_a'] + hp['right_b'];
+        let endText = "";
+        if (!lA && !rA)  endText = "⚡ 양팀 동시 전투 불능! 무승부!";
+        else if (!lA)   { endText = "🏆 오른팀 승리!"; motions.push({side:'right_a',popup:'승리!',popupType:'win'},{side:'right_b',popup:'승리!',popupType:'win'}); }
+        else if (!rA)   { endText = "🏆 왼팀 승리!";  motions.push({side:'left_a', popup:'승리!',popupType:'win'},{side:'left_b', popup:'승리!',popupType:'win'}); }
+        else if (ls > rs){ endText = `🏆 5라운드 — 왼팀 승리! (${ls} vs ${rs})`; motions.push({side:'left_a',popup:'승리!',popupType:'win'}); }
+        else if (rs > ls){ endText = `🏆 5라운드 — 오른팀 승리! (${ls} vs ${rs})`; motions.push({side:'right_a',popup:'승리!',popupType:'win'}); }
+        else              endText = "⚡ 5라운드 — 무승부!";
+        resultMsg.push({ sender:"시스템", text:endText, timestamp:ts+logs.length+1 });
+        await window.dbUtils.updateDoc(roomRef, { ...updBase, status:"ended", messages:window.dbUtils.arrayUnion(...resultMsg) });
     } else {
-        // 다음 라운드 — 홀수 라운드는 원래 선공, 짝수는 반대
-        const nextRound=round+1;
-        const nextFirst=(nextRound%2===1)?origFirst:origSecond;
-        resultMsg.push({sender:"시스템",text:`— ROUND ${nextRound} 시작 — ${nextFirst==='left'?'왼팀':'오른팀'} 선공`,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{
-            ...updBase,
-            currentRound:nextRound, phase:"turn_a", turnFirst:nextFirst,
-            messages:window.dbUtils.arrayUnion(...resultMsg)
-        });
+        const nextRound = round + 1;
+        const nextFirst = (nextRound % 2 === 1) ? origFirst : origSecond;
+        resultMsg.push({ sender:"시스템", text:`— ROUND ${nextRound} 시작 — ${nextFirst==='left'?'왼팀':'오른팀'} 선공`, timestamp:ts+logs.length+1 });
+        await window.dbUtils.updateDoc(roomRef, { ...updBase, currentRound:nextRound, phase:"turn_a", turnFirst:nextFirst, messages:window.dbUtils.arrayUnion(...resultMsg) });
     }
 }
 
@@ -634,8 +746,10 @@ function updateUI2v2(data,side,phase,status){
             btns.querySelectorAll('button').forEach(b=>{b.disabled=true;b.style.opacity=b.textContent.trim()===myAct?'1':'0.3';b.style.outline=b.textContent.trim()===myAct?'3px solid white':'';});
         } else {btns.classList.add('hidden');btns.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='1';b.style.outline='';});}
         // 타겟 패널 — 내 슬롯이 아니거나 pending 아닐 때 숨김
-        const tp=document.getElementById(`targets-${s}`);
-        if(tp&&(side!==s||!_pendingAction2v2)) tp.classList.add('hidden');
+        ['atk-targets','def-targets'].forEach(prefix => {
+            const tp = document.getElementById(`${prefix}-${s}`);
+            if (tp && (side !== s || !_pendingAction2v2)) tp.classList.add('hidden');
+        });
     });
 }
 
@@ -733,7 +847,7 @@ window.backToLobby=backToLobby; window.backToCharacterSelection=backToCharacterS
 window.openCreateModal=openCreateModal; window.closeCreateModal=closeCreateModal;
 window.confirmCreateRoom=confirmCreateRoom; window.startGame=startGame;
 window.toggleReady=toggleReady; window.toggleReady2v2=toggleReady2v2;
-window.selectAction=selectAction; window.selectAction2v2=selectAction2v2; window.selectTarget2v2=selectTarget2v2;
+window.selectAction=selectAction; window.selectAction2v2=selectAction2v2; window.selectTarget2v2=selectTarget2v2; window.selectDefendTarget2v2=selectDefendTarget2v2;
 window.confirmTeamSelect=confirmTeamSelect; window.closeTeamSelectModal=closeTeamSelectModal;
 
 function openCreateModal(){document.getElementById('create-room-modal').classList.remove('hidden');}

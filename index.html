@@ -280,17 +280,22 @@
                             <!-- 버튼 영역 고정 높이 -->
                             <div class="mt-1 flex flex-col gap-1" style="min-height:80px;">
                                 <button id="ready-btn-left_a" onclick="toggleReady2v2('left_a')" class="hidden w-full py-1 rounded text-xs font-bold" style="background:#57825a;color:white;border:1px solid #89b38c;">준비</button>
-                                <div id="btns-left_a" class="hidden flex flex-col gap-1">
+                                                            <div id="btns-left_a" class="hidden flex flex-col gap-1">
                                     <div class="grid grid-cols-2 gap-1">
-                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
-                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
-                                        <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
-                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_a','공격')">공격</button>
+                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_a','회피')">회피</button>
+                                        <button class="bg-green-700 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_a','방어')">방어</button>
+                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_a','도주')">도주</button>
                                     </div>
-                                    <div id="targets-left_a" class="hidden flex flex-col gap-1">
-                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 타겟 선택</p>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_a')"><span id="tname-ra-la">상대 A</span></button>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_b')"><span id="tname-rb-la">상대 B</span></button>
+                                    <div id="atk-targets-left_a" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 공격 타겟</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_a')"><span id="tname-ra-la">상대</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_b')"><span id="tname-rb-la">상대</span></button>
+                                    </div>
+                                    <div id="def-targets-left_a" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 방어 대상</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('left_a')"><span id="dname-la-la">나</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('left_b')"><span id="dname-lb-la">팀원</span></button>
                                     </div>
                                 </div>
                             </div>
@@ -312,17 +317,22 @@
                             </div>
                             <div class="mt-1 flex flex-col gap-1" style="min-height:80px;">
                                 <button id="ready-btn-left_b" onclick="toggleReady2v2('left_b')" class="hidden w-full py-1 rounded text-xs font-bold" style="background:#57825a;color:white;border:1px solid #89b38c;">준비</button>
-                                <div id="btns-left_b" class="hidden flex flex-col gap-1">
+                                                            <div id="btns-left_b" class="hidden flex flex-col gap-1">
                                     <div class="grid grid-cols-2 gap-1">
-                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
-                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
-                                        <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
-                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_b','공격')">공격</button>
+                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_b','회피')">회피</button>
+                                        <button class="bg-green-700 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_b','방어')">방어</button>
+                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('left_b','도주')">도주</button>
                                     </div>
-                                    <div id="targets-left_b" class="hidden flex flex-col gap-1">
-                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 타겟 선택</p>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_a')"><span id="tname-ra-lb">상대 A</span></button>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_b')"><span id="tname-rb-lb">상대 B</span></button>
+                                    <div id="atk-targets-left_b" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 공격 타겟</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_a')"><span id="tname-ra-lb">상대</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('right_b')"><span id="tname-rb-lb">상대</span></button>
+                                    </div>
+                                    <div id="def-targets-left_b" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 방어 대상</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('left_a')"><span id="dname-la-lb">팀원</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('left_b')"><span id="dname-lb-lb">나</span></button>
                                     </div>
                                 </div>
                             </div>
@@ -356,17 +366,22 @@
                             </div>
                             <div class="mt-1 flex flex-col gap-1" style="min-height:80px;">
                                 <button id="ready-btn-right_a" onclick="toggleReady2v2('right_a')" class="hidden w-full py-1 rounded text-xs font-bold" style="background:#57825a;color:white;border:1px solid #89b38c;">준비</button>
-                                <div id="btns-right_a" class="hidden flex flex-col gap-1">
+                                                            <div id="btns-right_a" class="hidden flex flex-col gap-1">
                                     <div class="grid grid-cols-2 gap-1">
-                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
-                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
-                                        <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
-                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_a','공격')">공격</button>
+                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_a','회피')">회피</button>
+                                        <button class="bg-green-700 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_a','방어')">방어</button>
+                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_a','도주')">도주</button>
                                     </div>
-                                    <div id="targets-right_a" class="hidden flex flex-col gap-1">
-                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 타겟 선택</p>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_a')"><span id="tname-la-ra">상대 A</span></button>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_b')"><span id="tname-lb-ra">상대 B</span></button>
+                                    <div id="atk-targets-right_a" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 공격 타겟</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_a')"><span id="tname-la-ra">상대</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_b')"><span id="tname-lb-ra">상대</span></button>
+                                    </div>
+                                    <div id="def-targets-right_a" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 방어 대상</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('right_a')"><span id="dname-ra-ra">나</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('right_b')"><span id="dname-rb-ra">팀원</span></button>
                                     </div>
                                 </div>
                             </div>
@@ -388,17 +403,22 @@
                             </div>
                             <div class="mt-1 flex flex-col gap-1" style="min-height:80px;">
                                 <button id="ready-btn-right_b" onclick="toggleReady2v2('right_b')" class="hidden w-full py-1 rounded text-xs font-bold" style="background:#57825a;color:white;border:1px solid #89b38c;">준비</button>
-                                <div id="btns-right_b" class="hidden flex flex-col gap-1">
+                                                            <div id="btns-right_b" class="hidden flex flex-col gap-1">
                                     <div class="grid grid-cols-2 gap-1">
-                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('공격')">공격</button>
-                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('회피')">회피</button>
-                                        <button class="bg-green-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('방어')">방어</button>
-                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('도주')">도주</button>
+                                        <button class="bg-red-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_b','공격')">공격</button>
+                                        <button class="bg-blue-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_b','회피')">회피</button>
+                                        <button class="bg-green-700 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_b','방어')">방어</button>
+                                        <button class="bg-gray-600 py-1 rounded text-xs font-bold" onclick="selectAction2v2('right_b','도주')">도주</button>
                                     </div>
-                                    <div id="targets-right_b" class="hidden flex flex-col gap-1">
-                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 타겟 선택</p>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_a')"><span id="tname-la-rb">상대 A</span></button>
-                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_b')"><span id="tname-lb-rb">상대 B</span></button>
+                                    <div id="atk-targets-right_b" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 공격 타겟</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_a')"><span id="tname-la-rb">상대</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#b45309;" onclick="selectTarget2v2('left_b')"><span id="tname-lb-rb">상대</span></button>
+                                    </div>
+                                    <div id="def-targets-right_b" class="hidden flex flex-col gap-1">
+                                        <p class="text-xs font-black text-center" style="color:#1a4a1c;">▼ 방어 대상</p>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('right_a')"><span id="dname-ra-rb">팀원</span></button>
+                                        <button class="py-1 rounded text-xs font-bold text-white" style="background:#1d4ed8;" onclick="selectDefendTarget2v2('right_b')"><span id="dname-rb-rb">나</span></button>
                                     </div>
                                 </div>
                             </div>
