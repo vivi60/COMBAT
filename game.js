@@ -254,14 +254,16 @@ function showTargetPanel(slot, show) {
     if (!panel) return;
     panel.classList.toggle('hidden', !show);
     if (show) {
-        // 타겟 버튼 이름 업데이트 (id 패턴: tname-{enemySlot}-{mySlotShort})
-        const myShort = slot.replace('left_','l').replace('right_','r').replace('a','a').replace('b','b'); // la, lb, ra, rb
+        // ID 패턴: tname-{enemyShort}-{myShort}
+        // slot: left_a → myShort = la, left_b → lb, right_a → ra, right_b → rb
+        const shortMap = { 'left_a':'la','left_b':'lb','right_a':'ra','right_b':'rb' };
+        const myShort = shortMap[slot];
         const enemies = teamOf(slot)==='left' ? ['right_a','right_b'] : ['left_a','left_b'];
         enemies.forEach(es => {
             const nameEl = document.getElementById(`name-${es}`);
-            const short = es.replace('left_','l').replace('right_','r');
-            const tEl = document.getElementById(`tname-${short}-${myShort.replace('left_','l').replace('right_','r')}`);
-            if (tEl && nameEl) tEl.innerText = nameEl.innerText;
+            const eShort = shortMap[es];
+            const tEl = document.getElementById(`tname-${eShort}-${myShort}`);
+            if (tEl && nameEl) tEl.innerText = nameEl.innerText || es;
         });
     }
 }
@@ -603,7 +605,7 @@ function updateUI2v2(data,side,phase,status){
         if(allJoined&&status==="waiting"&&side===s){
             btn.classList.remove('hidden');
             const r=data[`ready_${s}`]||false;
-            btn.textContent=r?'✔ 준비완료':'○ 준비';
+            btn.textContent=r?'준비완료':'준비';
             btn.style.borderColor=r?'#57825a':'';
             btn.style.color=r?'#89b38c':'';
             btn.disabled=false; btn.style.opacity='1';
@@ -631,7 +633,7 @@ function updateUI2v2(data,side,phase,status){
             btns.classList.remove('hidden');const myAct=data[`action_${s}`];
             btns.querySelectorAll('button').forEach(b=>{b.disabled=true;b.style.opacity=b.textContent.trim()===myAct?'1':'0.3';b.style.outline=b.textContent.trim()===myAct?'3px solid white':'';});
         } else {btns.classList.add('hidden');btns.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='1';b.style.outline='';});}
-        // 타겟 패널
+        // 타겟 패널 — 내 슬롯이 아니거나 pending 아닐 때 숨김
         const tp=document.getElementById(`targets-${s}`);
         if(tp&&(side!==s||!_pendingAction2v2)) tp.classList.add('hidden');
     });
