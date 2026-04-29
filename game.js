@@ -127,9 +127,10 @@ async function joinRoom(roomId, side) {
 }
 
 // ═══════════════════════════════════════════
-// [5] 다이스 굴리기 (팀 단위)
+// [5] 다이스 굴리기
 // ═══════════════════════════════════════════
 async function rollDice(side) {
+    // 1vs1 팀 다이스 (side: 'left' or 'right')
     const myTeam = is2v2Side(myProfile.side) ? teamOf(myProfile.side) : myProfile.side;
     if (myTeam !== side && myProfile.type !== "ADMIN") { alert("본인 팀의 다이스만 굴릴 수 있습니다!"); return; }
     if (!currentRoomId) return;
@@ -140,9 +141,27 @@ async function rollDice(side) {
     if (d.status !== "fighting") { alert("전투 시작 후 굴릴 수 있습니다!"); return; }
     if (d[`dice_${side}`] > 0)   { alert("이미 굴렸습니다!"); return; }
     if (d.phase !== "dice") return;
-    document.getElementById(`dice-${side}`).classList.add('dice-rolling');
+    document.getElementById(`dice-${side}`)?.classList.add('dice-rolling');
     const result = Math.floor(Math.random() * 100) + 1;
     setTimeout(async () => { await window.dbUtils.updateDoc(roomRef, { [`dice_${side}`]: result }); }, 500);
+}
+
+async function rollDice2v2(slot) {
+    // 2vs2 개인 주사위 (slot: 'left_a', 'left_b', 'right_a', 'right_b')
+    if (myProfile.side !== slot && myProfile.type !== "ADMIN") { alert("본인 주사위만 굴릴 수 있습니다!"); return; }
+    if (!currentRoomId) return;
+    const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
+    const snap = await window.dbUtils.getDoc(roomRef);
+    if (!snap.exists()) return;
+    const d = snap.data();
+    if (d.status !== "fighting") { alert("전투 시작 후 굴릴 수 있습니다!"); return; }
+    if (d[`dice_${slot}`] > 0)   { alert("이미 굴렸습니다!"); return; }
+    if (d.phase !== "dice") return;
+    document.getElementById(`dice-${slot}`)?.classList.add('dice-rolling');
+    const result = Math.floor(Math.random() * 100) + 1;
+    setTimeout(async () => {
+        await window.dbUtils.updateDoc(roomRef, { [`dice_${slot}`]: result });
+    }, 500);
 }
 
 // ═══════════════════════════════════════════
@@ -183,11 +202,19 @@ async function toggleReady2v2(slot) {
 // ═══════════════════════════════════════════
 async function determineTurnOrder(data) {
     if (data.isDetermined) return;
-    const first = data.dice_left >= data.dice_right ? "left" : "right";
+    let leftScore, rightScore;
+    if (data.roomType === '2vs2') {
+        leftScore  = (data.dice_left_a||0)  + (data.dice_left_b||0);
+        rightScore = (data.dice_right_a||0) + (data.dice_right_b||0);
+    } else {
+        leftScore  = data.dice_left  || 0;
+        rightScore = data.dice_right || 0;
+    }
+    const first = leftScore >= rightScore ? "left" : "right";
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
     const upd = {
         isDetermined:true, firstSide:first, turnFirst:first, phase:"turn_a",
-        messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`🎲 ${data.dice_left} vs ${data.dice_right} → ${first==='left'?'왼팀':'오른팀'} 선공!`, timestamp:Date.now() })
+        messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`🎲 ${leftScore} vs ${rightScore} → ${first==='left'?'왼팀':'오른팀'} 선공!`, timestamp:Date.now() })
     };
     if (data.roomType === '2vs2') {
         Object.assign(upd, { action_left_a:"",action_left_b:"",action_right_a:"",action_right_b:"", target_left_a:"",target_left_b:"",target_right_a:"",target_right_b:"", left_done:false, right_done:false });
@@ -238,8 +265,12 @@ async function selectAction(action) {
 // [전투] 2vs2 행동 선택
 // ═══════════════════════════════════════════
 async function selectAction2v2(slot, action) {
-    // slot: 'left_a' 등, action: '공격'|'방어'|'회피'|'도주'
     if (!currentRoomId || myProfile.side !== slot) return;
+
+    // 먼저 두 패널 모두 닫기
+    showPanel(`atk-targets-${slot}`, false);
+    showPanel(`def-targets-${slot}`, false);
+    _pendingAction2v2 = null;
 
     if (action === '도주') {
         const snap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "rooms", currentRoomId));
@@ -252,13 +283,23 @@ async function selectAction2v2(slot, action) {
         return;
     }
     if (action === '공격') {
+        // 공격 타겟 이름 업데이트
+        const shortMap = {'left_a':'la','left_b':'lb','right_a':'ra','right_b':'rb'};
+        const ms = shortMap[slot];
+        const enemies = teamOf(slot)==='left'
+            ? [['ra','right_a'],['rb','right_b']]
+            : [['la','left_a'],['lb','left_b']];
+        enemies.forEach(([eshort, eslot]) => {
+            const nameEl = document.getElementById(`name-${eslot}`);
+            const tEl = document.getElementById(`tname-${eshort}-${ms}`);
+            if (tEl && nameEl) tEl.innerText = nameEl.innerText || eslot;
+        });
         _pendingAction2v2 = '공격';
         showPanel(`atk-targets-${slot}`, true);
         return;
     }
     if (action === '방어') {
-        _pendingAction2v2 = '방어';
-        // 방어 대상 버튼 이름 업데이트
+        // 방어 대상 이름 업데이트
         const shortMap = {'left_a':'la','left_b':'lb','right_a':'ra','right_b':'rb'};
         const ms = shortMap[slot];
         const allies = teamOf(slot)==='left'
@@ -269,6 +310,7 @@ async function selectAction2v2(slot, action) {
             const tEl = document.getElementById(`dname-${ashort}-${ms}`);
             if (tEl && nameEl) tEl.innerText = aslot === slot ? `${nameEl.innerText}(나)` : nameEl.innerText;
         });
+        _pendingAction2v2 = '방어';
         showPanel(`def-targets-${slot}`, true);
         return;
     }
@@ -702,12 +744,24 @@ function updateUI2v2(data,side,phase,status){
         const wrapper=iEl?.parentElement?.parentElement;
         if(wrapper)wrapper.style.opacity=hp<=0?'0.4':'1';
     });
-    // 다이스·배지
-    ['left','right'].forEach(s=>{
-        const dBox=document.getElementById(`dice-${s}-2v2`),badge=document.getElementById(`first-badge-${s}-2v2`);
-        if(!dBox||!badge) return;
-        if(data.isDetermined){dBox.style.display='none';badge.classList.toggle('hidden',data.turnFirst!==s);}
-        else{dBox.style.display='';dBox.style.opacity=status==='fighting'?'1':'0.35';dBox.style.cursor=status==='fighting'?'pointer':'not-allowed';dBox.innerText=data[`dice_${s}`]>0?data[`dice_${s}`]:'?';if(data[`dice_${s}`]>0)dBox.classList.remove('dice-rolling');badge.classList.add('hidden');}
+    // 개인 주사위 표시 (2v2)
+    ['left_a','left_b','right_a','right_b'].forEach(s=>{
+        const dBox=document.getElementById(`dice-${s}`);
+        const badge=document.getElementById(`first-badge-${s}`);
+        if(!dBox) return;
+        if(data.isDetermined){
+            dBox.style.display='none';
+            // 배지: firstSide 팀 소속이면 표시
+            if(badge) badge.classList.toggle('hidden', teamOf(s) !== (data.firstSide||data.turnFirst));
+        } else {
+            dBox.style.display='';
+            const rolled = data[`dice_${s}`]||0;
+            dBox.innerText = rolled>0 ? rolled : '?';
+            dBox.style.opacity = status==='fighting'?'1':'0.35';
+            dBox.style.cursor  = status==='fighting'&&rolled===0?'pointer':'not-allowed';
+            if(rolled>0) dBox.classList.remove('dice-rolling');
+            if(badge) badge.classList.add('hidden');
+        }
     });
     // 레디 — 개인별
     const allJoined=data.name_left_a&&data.name_left_b&&data.name_right_a&&data.name_right_b;
@@ -730,8 +784,9 @@ function updateUI2v2(data,side,phase,status){
     const ro=document.getElementById('ready-overlay');
     if(bothReady&&status==="waiting"){ro?.classList.remove('hidden');document.getElementById('start-game-btn')?.classList.toggle('hidden',myProfile.type!=="ADMIN");const wm=document.getElementById('waiting-msg');if(wm)wm.style.display=myProfile.type==="ADMIN"?'none':'';}
     else ro?.classList.add('hidden');
-    // 선공 트리거
-    if(status==='fighting'&&phase==='dice'&&data.dice_left>0&&data.dice_right>0&&!data.isDetermined&&side==='left_a') determineTurnOrder(data);
+    // 선공 트리거 — 4명 모두 굴렸을 때
+    const allRolled = data.dice_left_a>0 && data.dice_left_b>0 && data.dice_right_a>0 && data.dice_right_b>0;
+    if(status==='fighting'&&phase==='dice'&&allRolled&&!data.isDetermined&&side==='left_a') determineTurnOrder(data);
     // 행동 버튼
     const isFighting=status==='fighting'&&(phase==='turn_a'||phase==='turn_b');
     slots.forEach(s=>{
@@ -841,7 +896,7 @@ function init(){listenToRoomList();setupChatEventListeners();}
 window.onload=init;
 
 // 전역 바인딩
-window.rollDice=rollDice; window.createRoom=createRoom; window.joinRoom=joinRoom;
+window.rollDice=rollDice; window.rollDice2v2=rollDice2v2; window.createRoom=createRoom; window.joinRoom=joinRoom;
 window.sendChat=sendChat; window.selectCharacter=selectCharacter;
 window.backToLobby=backToLobby; window.backToCharacterSelection=backToCharacterSelection;
 window.openCreateModal=openCreateModal; window.closeCreateModal=closeCreateModal;
@@ -904,6 +959,14 @@ async function startGame(){
     });
     const upd={status:"fighting",ready_left:false,ready_right:false,dice_left:0,dice_right:0,isDetermined:false,firstSide:"",turnFirst:"",phase:"dice",currentRound:1,lastMotions:[],lastMotionId:0,messages:window.dbUtils.arrayUnion({sender:"시스템",text:"⚔️ 전투 시작! 다이스를 굴려 선공을 결정하세요.",timestamp:Date.now()})};
     if(d.roomType==='1vs1'){upd.hp_left=d.start_hp_left??100;upd.hp_right=d.start_hp_right??100;upd.action_first="";upd.action_second="";}
-    else{upd.hp_left_a=d.start_hp_left_a??100;upd.hp_left_b=d.start_hp_left_b??100;upd.hp_right_a=d.start_hp_right_a??100;upd.hp_right_b=d.start_hp_right_b??100;upd.action_left_a="";upd.action_left_b="";upd.action_right_a="";upd.action_right_b="";upd.target_left_a="";upd.target_left_b="";upd.target_right_a="";upd.target_right_b="";upd.left_done=false;upd.right_done=false;}
+    else{
+        upd.hp_left_a=d.start_hp_left_a??100;upd.hp_left_b=d.start_hp_left_b??100;
+        upd.hp_right_a=d.start_hp_right_a??100;upd.hp_right_b=d.start_hp_right_b??100;
+        upd.action_left_a="";upd.action_left_b="";upd.action_right_a="";upd.action_right_b="";
+        upd.target_left_a="";upd.target_left_b="";upd.target_right_a="";upd.target_right_b="";
+        upd.left_done=false;upd.right_done=false;
+        // 개인별 주사위 초기화
+        upd.dice_left_a=0;upd.dice_left_b=0;upd.dice_right_a=0;upd.dice_right_b=0;
+    }
     await window.dbUtils.updateDoc(roomRef,upd);
 }
