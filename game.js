@@ -216,7 +216,8 @@ async function determineTurnOrder(data) {
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
     const upd = {
         isDetermined:true, firstSide:first, turnFirst:first, phase:"turn_a",
-        turnDeadline: Date.now() + 300000, // 5분
+        subTurn: 1, origRoundFirst: first,
+        turnDeadline: Date.now() + 300000,
         messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`🎲 ${leftScore} vs ${rightScore} → ${first==='left'?'왼팀':'오른팀'} 선공!`, timestamp:Date.now() })
     };
     if (data.roomType === '2vs2') {
@@ -524,18 +525,37 @@ async function resolveTurn(data, roomRef) {
         resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
         await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",status:"ended",lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
     } else {
-        const nextRound=round+1, orig=data.firstSide;
-        const nextFirst=(nextRound%2===1)?orig:(orig==='left'?'right':'left');
-        resultMsg.push({sender:"시스템",text:`다음 라운드 준비 중...`,timestamp:ts+logs.length+1});
-        const breakDeadline = Date.now() + 60000; // 1분 대기
-        await window.dbUtils.updateDoc(roomRef,{
-            hp_left,hp_right,action_first:"",action_second:"",
-            phase:"break", nextRound, nextFirst,
-            turnFirst: nextFirst,
-            breakDeadline,
-            lastMotions:motions,lastMotionId:motionId,
-            messages:window.dbUtils.arrayUnion(...resultMsg)
-        });
+        const subTurn = data.subTurn || 1;
+        if (subTurn === 1) {
+            // 1번째 미니턴 끝 → 선후공 교체 후 2번째 미니턴
+            const newFirst = origFirst === 'left' ? 'right' : 'left';
+            resultMsg.push({sender:"시스템",text:`↩️ 선후공 교체 — ${(data[`name_${newFirst}`]||'').split('|')[0]} 선공으로 2번째 미니턴!`,timestamp:ts+logs.length+1});
+            const miniDeadline = Date.now() + 300000;
+            await window.dbUtils.updateDoc(roomRef,{
+                hp_left,hp_right, action_first:"", action_second:"",
+                phase:"turn_a", subTurn:2,
+                turnFirst:newFirst, firstSide:newFirst,
+                turnDeadline:miniDeadline,
+                lastMotions:motions, lastMotionId:motionId,
+                messages:window.dbUtils.arrayUnion(...resultMsg)
+            });
+        } else {
+            // 2번째 미니턴 끝 → 라운드 종료
+            const nextRound=round+1;
+            const origRoundFirst = data.origRoundFirst || origSecond;
+            const nextRoundFirst = origRoundFirst === 'left' ? 'right' : 'left';
+            resultMsg.push({sender:"시스템",text:`다음 라운드 준비 중...`,timestamp:ts+logs.length+1});
+            const breakDeadline = Date.now() + 60000;
+            await window.dbUtils.updateDoc(roomRef,{
+                hp_left,hp_right, action_first:"", action_second:"",
+                phase:"break", nextRound,
+                nextFirst: nextRoundFirst,
+                nextOrigRoundFirst: nextRoundFirst,
+                turnFirst: nextRoundFirst, breakDeadline,
+                lastMotions:motions, lastMotionId:motionId,
+                messages:window.dbUtils.arrayUnion(...resultMsg)
+            });
+        }
     }
 }
 
@@ -683,15 +703,35 @@ async function resolveTurn2v2(data, roomRef) {
         resultMsg.push({ sender:"시스템", text:endText, timestamp:ts+logs.length+1 });
         await window.dbUtils.updateDoc(roomRef, { ...updBase, status:"ended", messages:window.dbUtils.arrayUnion(...resultMsg) });
     } else {
-        const nextRound = round + 1;
-        const nextFirst = (nextRound % 2 === 1) ? origFirst : origSecond;
-        resultMsg.push({ sender:"시스템", text:`다음 라운드 준비 중...`, timestamp:ts+logs.length+1 });
-        const breakDeadline = Date.now() + 60000;
-        await window.dbUtils.updateDoc(roomRef, {
-            ...updBase, phase:"break", nextRound, nextFirst,
-            turnFirst: nextFirst, breakDeadline,
-            messages:window.dbUtils.arrayUnion(...resultMsg)
-        });
+        const subTurn = data.subTurn || 1; // 1 = A선공 미니턴, 2 = B선공 미니턴
+
+        if (subTurn === 1) {
+            // 1번째 미니턴 끝 → 2번째 미니턴 (선후공 교체), 같은 라운드
+            const newFirst = origFirst === 'left' ? 'right' : 'left';
+            resultMsg.push({ sender:"시스템", text:`↩️ 선후공 교체 — ${newFirst==='left'?'왼팀':'오른팀'} 선공으로 2번째 미니턴!`, timestamp:ts+logs.length+1 });
+            const miniDeadline = Date.now() + 300000;
+            await window.dbUtils.updateDoc(roomRef, {
+                ...updBase, phase:"turn_a", subTurn:2,
+                turnFirst:newFirst, firstSide:newFirst, // 2번째 미니턴의 선공
+                turnDeadline:miniDeadline,
+                messages:window.dbUtils.arrayUnion(...resultMsg)
+            });
+        } else {
+            // 2번째 미니턴 끝 → 라운드 종료, 다음 라운드 대기
+            const nextRound = round + 1;
+            // 다음 라운드 1번째 미니턴 선공 = 원래 라운드 선공과 반대 (라운드 번호 홀짝)
+            const origRoundFirst = data.origRoundFirst || origSecond; // 이 라운드 최초 선공
+            const nextRoundFirst = origRoundFirst === 'left' ? 'right' : 'left';
+            resultMsg.push({ sender:"시스템", text:`다음 라운드 준비 중...`, timestamp:ts+logs.length+1 });
+            const breakDeadline = Date.now() + 60000;
+            await window.dbUtils.updateDoc(roomRef, {
+                ...updBase, phase:"break", nextRound,
+                nextFirst: nextRoundFirst,
+                nextOrigRoundFirst: nextRoundFirst,
+                turnFirst: nextRoundFirst, breakDeadline,
+                messages:window.dbUtils.arrayUnion(...resultMsg)
+            });
+        }
     }
 }
 
@@ -727,7 +767,9 @@ function startRealtimeUpdate(roomId) {
                 chatBox.scrollTop=chatBox.scrollHeight;
             }
         }
-        document.getElementById('round-display').innerText=`ROUND ${data.currentRound||1} / 5`;
+        const sub = data.subTurn || 1;
+        const subLabel = sub === 1 ? '① 1번째 미니턴' : '② 2번째 미니턴';
+        document.getElementById('round-display').innerText = `ROUND ${data.currentRound||1} / 5  ${subLabel}`;
         updateResultOverlay(data,side);
 
         // ── 타이머 처리 ──
@@ -738,7 +780,7 @@ function startRealtimeUpdate(roomId) {
 
             if (status === 'fighting' && (phase === 'turn_a' || phase === 'turn_b') && data.turnDeadline) {
                 // 5분 행동 타이머
-                startCountdown(data.turnDeadline, '남은 시간', () => {
+                startCountdown(data.turnDeadline, () => {
                     // 타임아웃: 내가 left_a 또는 left(1v1 선공 측) 라면 강제 결산
                     if (side === 'left_a' || (data.roomType!=='2vs2' && side === data.turnFirst)) {
                         forceResolve(data, roomRef);
@@ -746,7 +788,7 @@ function startRealtimeUpdate(roomId) {
                 });
             } else if (status === 'fighting' && phase === 'break' && data.breakDeadline) {
                 // 1분 라운드 휴식 타이머
-                startCountdown(data.breakDeadline, '다음 라운드까지', () => {
+                startCountdown(data.breakDeadline, () => {
                     if (side === 'left_a' || (data.roomType!=='2vs2' && side === 'left')) {
                         startNextRound(data, roomRef);
                     }
@@ -759,13 +801,11 @@ function startRealtimeUpdate(roomId) {
 }
 
 // ─── 타이머 함수 ───
-function startCountdown(deadline, label, onExpire) {
+function startCountdown(deadline, onExpire) {
     const timerEl  = document.getElementById('timer-2v2');
-    const labelEl  = document.getElementById('timer-label-2v2');
     const numEl    = document.getElementById('timer-num-2v2');
     if (!timerEl) return;
     timerEl.classList.remove('hidden');
-    if (labelEl) labelEl.innerText = label;
 
     clearInterval(_timerInterval);
     _timerInterval = setInterval(() => {
@@ -802,9 +842,12 @@ async function forceResolve(data, roomRef) {
 async function startNextRound(data, roomRef) {
     const nextRound = data.nextRound;
     const nextFirst = data.nextFirst;
-    const deadline  = Date.now() + 300000; // 5분 행동 타이머
+    const origRoundFirst = data.nextOrigRoundFirst || nextFirst;
+    const deadline  = Date.now() + 300000;
     const upd = {
         phase:"turn_a", currentRound:nextRound, turnFirst:nextFirst,
+        firstSide: nextFirst, origRoundFirst: origRoundFirst,
+        subTurn: 1,
         turnDeadline: deadline, breakDeadline: null,
         action_first:"", action_second:"",
         messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`— ROUND ${nextRound} 시작 — ${nextFirst==='left'?'왼팀':'오른팀'} 선공`, timestamp:Date.now() })
@@ -1098,7 +1141,7 @@ async function startGame(){
         if(dBox){dBox.style.display='';dBox.innerText='?';dBox.classList.remove('dice-rolling');}
         document.getElementById(`first-badge-${s}`)?.classList.add('hidden');
     });
-    const upd={status:"fighting",ready_left:false,ready_right:false,dice_left:0,dice_right:0,isDetermined:false,firstSide:"",turnFirst:"",phase:"dice",currentRound:1,lastMotions:[],lastMotionId:0,messages:window.dbUtils.arrayUnion({sender:"시스템",text:"⚔️ 전투 시작! 다이스를 굴려 선공을 결정하세요.",timestamp:Date.now()})};
+    const upd={status:"fighting",ready_left:false,ready_right:false,dice_left:0,dice_right:0,isDetermined:false,firstSide:"",turnFirst:"",phase:"dice",currentRound:1,subTurn:1,origRoundFirst:"",lastMotions:[],lastMotionId:0,messages:window.dbUtils.arrayUnion({sender:"시스템",text:"⚔️ 전투 시작! 다이스를 굴려 선공을 결정하세요.",timestamp:Date.now()})};
     if(d.roomType==='1vs1'){upd.hp_left=d.start_hp_left??100;upd.hp_right=d.start_hp_right??100;upd.action_first="";upd.action_second="";}
     else{
         upd.hp_left_a=d.start_hp_left_a??100;upd.hp_left_b=d.start_hp_left_b??100;
