@@ -6,6 +6,8 @@ let currentRoomId = "";
 let _lastMotionId = null;
 let _pendingAction2v2 = null;
 let _pendingRoomId = "";
+let _timerInterval = null;   // 클라이언트 타이머 인터벌
+let _lastPhase = null;       // 페이즈 변경 감지용
 
 // ═══════════════════════════════════════════
 // 유틸
@@ -214,6 +216,7 @@ async function determineTurnOrder(data) {
     const roomRef = window.dbUtils.doc(window.db, "rooms", currentRoomId);
     const upd = {
         isDetermined:true, firstSide:first, turnFirst:first, phase:"turn_a",
+        turnDeadline: Date.now() + 300000, // 5분
         messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`🎲 ${leftScore} vs ${rightScore} → ${first==='left'?'왼팀':'오른팀'} 선공!`, timestamp:Date.now() })
     };
     if (data.roomType === '2vs2') {
@@ -239,25 +242,39 @@ async function selectAction(action) {
             if (d.status !== 'fighting') throw new Error("전투 중 아님");
             if (!['turn_a','turn_b'].includes(d.phase)) throw new Error("페이즈 오류");
             if (action === '도주' && (d.currentRound||1) < 3) throw new Error("도주_불가");
-            const iAmFirst = d.turnFirst === side;
-            if (iAmFirst) {
-                if (d.action_first) throw new Error("이미_선택");
-                tx.update(roomRef, { action_first:action, messages:window.dbUtils.arrayUnion({ sender:"시스템", text:`${myProfile.name} 님이 행동을 선택했습니다.`, timestamp:Date.now() }) });
+            if (d.turnFirst !== side) throw new Error("상대팀_차례");
+            if (d.action_first) throw new Error("이미_선택");
+
+            const update = d.phase === 'turn_a' ? { action_first: action } : { action_second: action };
+
+            if (d.phase === 'turn_a') {
+                const secondSide = side === 'left' ? 'right' : 'left';
+                update.phase = 'turn_b';
+                update.turnFirst = secondSide;
+                update.turnDeadline = Date.now() + 300000;
+                update.messages = window.dbUtils.arrayUnion({
+                    sender:"시스템",
+                    text:`${(d[`name_${side}`]||'').split('|')[0]} 행동 완료! ↩️ 후공 차례`,
+                    timestamp:Date.now()
+                });
             } else {
-                if (!d.action_first) throw new Error("상대_미선택");
-                if (d.action_second) throw new Error("이미_선택");
-                tx.update(roomRef, { action_second:action });
-                shouldResolve = true; resolveData = { ...d, action_second:action };
+                shouldResolve = true;
+                resolveData = { ...d, action_second: action };
             }
+            tx.update(roomRef, update);
         });
     } catch(e) {
         if (e.message==="도주_불가")   { alert("도주는 3라운드부터 가능합니다!"); return; }
         if (e.message==="이미_선택")   { alert("이미 행동을 선택했습니다!"); return; }
-        if (e.message==="상대_미선택") { alert("선공이 먼저 행동을 선택해야 합니다!"); return; }
+        if (e.message==="상대팀_차례") { alert("아직 내 차례가 아닙니다!"); return; }
         console.error("selectAction 오류:", e); return;
     }
     const btns = document.getElementById(`btns-${side}`);
-    if (btns) btns.querySelectorAll('button').forEach(b => { b.disabled=true; b.style.opacity=b.textContent.trim()===action?'1':'0.3'; b.style.outline=b.textContent.trim()===action?'3px solid white':''; });
+    if (btns) btns.querySelectorAll('button').forEach(b => {
+        b.disabled=true;
+        b.style.opacity=b.textContent.trim()===action?'1':'0.3';
+        b.style.outline=b.textContent.trim()===action?'3px solid white':'';
+    });
     if (shouldResolve && resolveData) await resolveTurn(resolveData, roomRef);
 }
 
@@ -385,6 +402,7 @@ async function commitAction2v2(slot, action, target) {
                     const secondTeam = myTeam==='left'?'right':'left';
                     update.phase = 'turn_b';
                     update.turnFirst = secondTeam;
+                    update.turnDeadline = Date.now() + 300000;
                     update.messages = window.dbUtils.arrayUnion({
                         sender:"시스템",
                         text:`${myTeam==='left'?'왼팀':'오른팀'} 행동 완료! ↩️ ${secondTeam==='left'?'왼팀':'오른팀'} 차례`,
@@ -416,86 +434,111 @@ async function commitAction2v2(slot, action, target) {
 // [전투] 1vs1 턴 결산
 // ═══════════════════════════════════════════
 async function resolveTurn(data, roomRef) {
-    const tf = data.turnFirst, ts2 = tf==='left'?'right':'left';
-    const aF=data.action_first, aS=data.action_second;
-    const nF=data[`name_${tf}`].split('|')[0], nS=data[`name_${ts2}`].split('|')[0];
-    const round=data.currentRound||1, phase=data.phase, ts=Date.now();
-    let hpF=data[`hp_${tf}`], hpS=data[`hp_${ts2}`];
-    const logs=[], motions=[], icon={'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
-    logs.push(`${icon[aF]||''} ${nF}의 행동: ${aF}`);
-    logs.push(`${icon[aS]||''} ${nS}의 행동: ${aS}`);
+    // turn_b 종료 시 호출. data.firstSide = 원래 선공, data.turnFirst = 후공(현재)
+    // action_first: turn_a에서 선공이 선택한 행동, turn_b에서 후공이 선택한 행동 → 각각 덮어쓰지 않고 별도 저장 필요
+    // 실제로는 turn_a에서 action_first에 선공행동 저장, turn_b에서 action_second에 후공행동 저장하도록 수정
+    // → 이미 이전 로직에서 action_first만 써버렸으므로, 선공행동=data.action_first_stored, 후공=data.action_first(현재)
+    // 더 명확하게: turn_a 저장 → action_turn_a, turn_b 저장 → action_first(현재 덮어씀 방지 위해 action_second로)
+    // 현재 코드는 두 turn 모두 action_first를 쓰므로 충돌. 1v1 selectAction을 turn_a → action_first, turn_b → action_second로 수정
 
-    if (aF==='공격'&&aS==='공격') {
-        const atk=rollAttack(); hpS=Math.max(0,hpS-atk);
-        motions.push({side:tf,anim:'attack'},{side:ts2,anim:'hit',popup:`-${atk}`,popupType:'damage'});
-        logs.push(`${nF} 공격 ${atk} → ${nS} -${atk}HP`);
-        if (hpS>0) { const atk2=rollAttack(); hpF=Math.max(0,hpF-atk2); motions.push({side:ts2,anim:'attack'},{side:tf,anim:'hit',popup:`-${atk2}`,popupType:'damage'}); logs.push(`${nS} 반격 ${atk2} → ${nF} -${atk2}HP`); }
-        else logs.push(`${nS} 쓰러져 반격 불가!`);
-    } else if (aF==='공격'&&aS==='방어') {
-        const atk=rollAttack(),def=rollDefense(),dmg=Math.max(0,atk-def); hpS=Math.max(0,hpS-dmg);
-        motions.push({side:tf,anim:'attack'},{side:ts2,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
-        logs.push(dmg>0?`공격 ${atk} - 방어 ${def} = ${dmg} 데미지`:`완전히 막아냈습니다!`);
-    } else if (aF==='방어'&&aS==='공격') {
-        const atk=rollAttack(),def=rollDefense(),dmg=Math.max(0,atk-def); hpF=Math.max(0,hpF-dmg);
-        motions.push({side:ts2,anim:'attack'},{side:tf,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
-        logs.push(dmg>0?`공격 ${atk} - 방어 ${def} = ${dmg} 데미지`:`완전히 막아냈습니다!`);
-    } else if (aF==='공격'&&aS==='회피') {
-        const atk=rollAttack(),dodged=Math.random()<0.5;
-        motions.push({side:tf,anim:'attack'},{side:ts2,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
-        if (dodged) logs.push(`${nS} 회피 성공!`); else { hpS=Math.max(0,hpS-atk); logs.push(`회피 실패! -${atk}HP`); }
-    } else if (aF==='회피'&&aS==='공격') {
-        const atk=rollAttack(),dodged=Math.random()<0.5;
-        motions.push({side:ts2,anim:'attack'},{side:tf,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
-        if (dodged) logs.push(`${nF} 회피 성공!`); else { hpF=Math.max(0,hpF-atk); logs.push(`회피 실패! -${atk}HP`); }
-    } else if (aF==='공격'&&aS==='도주') {
-        const atk=rollAttack(),esc=Math.random()<0.5;
-        motions.push({side:ts2,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if (esc) { hpS=0; logs.push(`${nS} 도주 성공!`); } else { motions.push({side:tf,anim:'attack'},{side:ts2,anim:'hit',popup:`-${atk}`,popupType:'damage'}); hpS=Math.max(0,hpS-atk); logs.push(`도주 실패! -${atk}HP`); }
-    } else if (aF==='도주'&&aS==='공격') {
-        const atk=rollAttack(),esc=Math.random()<0.5;
-        motions.push({side:tf,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if (esc) { hpF=0; logs.push(`${nF} 도주 성공!`); } else { motions.push({side:ts2,anim:'attack'},{side:tf,anim:'hit',popup:`-${atk}`,popupType:'damage'}); hpF=Math.max(0,hpF-atk); logs.push(`도주 실패! -${atk}HP`); }
-    } else if (aF==='도주'&&aS==='도주') {
-        const eF=Math.random()<0.5,eS=Math.random()<0.5;
-        motions.push({side:tf,anim:'flee',popup:eF?'도주!':'실패!',popupType:'flee'},{side:ts2,anim:'flee',popup:eS?'도주!':'실패!',popupType:'flee'});
-        if(eF) hpF=0; if(eS) hpS=0; logs.push(`${nF} 도주 ${eF?'성공':'실패'} / ${nS} 도주 ${eS?'성공':'실패'}`);
-    } else if (aF==='도주') {
-        const esc=Math.random()<0.5; motions.push({side:tf,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(aS==='회피') motions.push({side:ts2,anim:'dodge'}); else if(aS==='방어') motions.push({side:ts2,anim:'defend'});
-        if(esc){hpF=0;logs.push(`${nF} 도주 성공!`);}else logs.push(`${nF} 도주 실패! 피해 없음.`);
-    } else if (aS==='도주') {
-        const esc=Math.random()<0.5; motions.push({side:ts2,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(aF==='회피') motions.push({side:tf,anim:'dodge'}); else if(aF==='방어') motions.push({side:tf,anim:'defend'});
-        if(esc){hpS=0;logs.push(`${nS} 도주 성공!`);}else logs.push(`${nS} 도주 실패! 피해 없음.`);
-    } else { logs.push(`서로 맞붙지 않아 피해가 없습니다.`); }
+    const origFirst  = data.firstSide || data.turnFirst;
+    const origSecond = origFirst === 'left' ? 'right' : 'left';
+    const aFirst  = data.action_first;   // 선공(turn_a)의 행동
+    const aSecond = data.action_second;  // 후공(turn_b)의 행동
+    const nFirst  = (data[`name_${origFirst}`]||'').split('|')[0];
+    const nSecond = (data[`name_${origSecond}`]||'').split('|')[0];
+    const round = data.currentRound || 1;
+    const ts = Date.now();
+    let hpFirst  = data[`hp_${origFirst}`]  ?? 100;
+    let hpSecond = data[`hp_${origSecond}`] ?? 100;
+    const logs = [], motions = [], icon = {'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
 
-    const hp_left=tf==='left'?hpF:hpS, hp_right=tf==='left'?hpS:hpF;
-    const nL=data.name_left.split('|')[0], nR=data.name_right.split('|')[0];
-    const motionId=ts;
-    const isGameOver=(hp_left<=0||hp_right<=0)||(phase==='turn_b'&&round>=5);
-    let resultMsg=[]; logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
+    logs.push(`${icon[aFirst]||''} ${nFirst}의 행동: ${aFirst||'없음'}`);
+    logs.push(`${icon[aSecond]||''} ${nSecond}의 행동: ${aSecond||'없음'}`);
+
+    const effectiveA = aFirst || '';
+    const effectiveB = aSecond || '';
+
+    if (effectiveA==='공격'&&effectiveB==='공격') {
+        const atk=rollAttack(); hpSecond=Math.max(0,hpSecond-atk);
+        motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});
+        logs.push(`${nFirst} 공격 ${atk} → ${nSecond} -${atk}HP`);
+        if(hpSecond>0){const atk2=rollAttack();hpFirst=Math.max(0,hpFirst-atk2);motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk2}`,popupType:'damage'});logs.push(`${nSecond} 반격 ${atk2} → ${nFirst} -${atk2}HP`);}
+        else logs.push(`${nSecond} 쓰러져 반격 불가!`);
+    } else if (effectiveA==='공격'&&effectiveB==='방어') {
+        const atk=rollAttack(),def=rollDefense(),dmg=Math.max(0,atk-def);hpSecond=Math.max(0,hpSecond-dmg);
+        motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
+        logs.push(dmg>0?`공격 ${atk} - 방어 ${def} = ${dmg} 데미지`:`완전히 막아냈습니다!`);
+    } else if (effectiveA==='방어'&&effectiveB==='공격') {
+        const atk=rollAttack(),def=rollDefense(),dmg=Math.max(0,atk-def);hpFirst=Math.max(0,hpFirst-dmg);
+        motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
+        logs.push(dmg>0?`공격 ${atk} - 방어 ${def} = ${dmg} 데미지`:`완전히 막아냈습니다!`);
+    } else if (effectiveA==='공격'&&effectiveB==='회피') {
+        const atk=rollAttack(),dodged=Math.random()<0.5;
+        motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
+        if(dodged)logs.push(`${nSecond} 회피 성공!`);else{hpSecond=Math.max(0,hpSecond-atk);logs.push(`회피 실패! -${atk}HP`);}
+    } else if (effectiveA==='회피'&&effectiveB==='공격') {
+        const atk=rollAttack(),dodged=Math.random()<0.5;
+        motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
+        if(dodged)logs.push(`${nFirst} 회피 성공!`);else{hpFirst=Math.max(0,hpFirst-atk);logs.push(`회피 실패! -${atk}HP`);}
+    } else if (effectiveA==='공격'&&effectiveB==='도주') {
+        const atk=rollAttack(),esc=Math.random()<0.5;
+        motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
+        if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공!`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
+    } else if (effectiveA==='도주'&&effectiveB==='공격') {
+        const atk=rollAttack(),esc=Math.random()<0.5;
+        motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
+        if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공!`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
+    } else if (effectiveA==='도주'&&effectiveB==='도주') {
+        const eA=Math.random()<0.5,eB=Math.random()<0.5;
+        motions.push({side:origFirst,anim:'flee',popup:eA?'도주!':'실패!',popupType:'flee'},{side:origSecond,anim:'flee',popup:eB?'도주!':'실패!',popupType:'flee'});
+        if(eA)hpFirst=0;if(eB)hpSecond=0;logs.push(`${nFirst} 도주 ${eA?'성공':'실패'} / ${nSecond} 도주 ${eB?'성공':'실패'}`);
+    } else if (effectiveA==='도주') {
+        const esc=Math.random()<0.5;motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
+        if(effectiveB==='회피')motions.push({side:origSecond,anim:'dodge'});else if(effectiveB==='방어')motions.push({side:origSecond,anim:'defend'});
+        if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공!`);}else logs.push(`${nFirst} 도주 실패! 피해 없음.`);
+    } else if (effectiveB==='도주') {
+        const esc=Math.random()<0.5;motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
+        if(effectiveA==='회피')motions.push({side:origFirst,anim:'dodge'});else if(effectiveA==='방어')motions.push({side:origFirst,anim:'defend'});
+        if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공!`);}else logs.push(`${nSecond} 도주 실패! 피해 없음.`);
+    } else {
+        logs.push(`서로 맞붙지 않아 피해가 없습니다.`);
+    }
+
+    const hp_left  = origFirst==='left' ? hpFirst : hpSecond;
+    const hp_right = origFirst==='left' ? hpSecond : hpFirst;
+    const nL = (data.name_left||'').split('|')[0], nR = (data.name_right||'').split('|')[0];
+    const motionId = ts;
+    const isGameOver = (hp_left<=0||hp_right<=0)||(round>=5);
+    let resultMsg = [];
+    logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
 
     if (isGameOver) {
         let endText="";
         if(hp_left<=0&&hp_right<=0){endText="⚡ 무승부!";}
         else if(hp_left<=0){endText=`🏆 ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
         else if(hp_right<=0){endText=`🏆 ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
-        else if(hp_left>hp_right){endText=`🏆 5라운드 — ${nL} 승리! (${hp_left} vs ${hp_right})`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
-        else if(hp_right>hp_left){endText=`🏆 5라운드 — ${nR} 승리! (${hp_left} vs ${hp_right})`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
+        else if(hp_left>hp_right){endText=`🏆 5라운드 — ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
+        else if(hp_right>hp_left){endText=`🏆 5라운드 — ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
         else{endText=`⚡ 5라운드 — 무승부!`;}
         resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
         await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",status:"ended",lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
-    } else if (phase==='turn_a') {
-        const newF=tf==='left'?'right':'left';
-        resultMsg.push({sender:"시스템",text:`↩️ 선후공 교체 — ${data[`name_${newF}`].split('|')[0]} 먼저!`,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",phase:"turn_b",turnFirst:newF,lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
     } else {
         const nextRound=round+1, orig=data.firstSide;
         const nextFirst=(nextRound%2===1)?orig:(orig==='left'?'right':'left');
-        resultMsg.push({sender:"시스템",text:`— ROUND ${nextRound} 시작 — ${data[`name_${nextFirst}`].split('|')[0]} 선공`,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",currentRound:nextRound,phase:"turn_a",turnFirst:nextFirst,lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
+        resultMsg.push({sender:"시스템",text:`다음 라운드 준비 중...`,timestamp:ts+logs.length+1});
+        const breakDeadline = Date.now() + 60000; // 1분 대기
+        await window.dbUtils.updateDoc(roomRef,{
+            hp_left,hp_right,action_first:"",action_second:"",
+            phase:"break", nextRound, nextFirst,
+            turnFirst: nextFirst,
+            breakDeadline,
+            lastMotions:motions,lastMotionId:motionId,
+            messages:window.dbUtils.arrayUnion(...resultMsg)
+        });
     }
 }
+
 
 // ═══════════════════════════════════════════
 // [전투] 2vs2 턴 결산 — 공격 합산, 방어 합산
@@ -604,6 +647,13 @@ async function resolveTurn2v2(data, roomRef) {
         }
     }
 
+    // 아무도 공격하지 않은 경우 문구
+    if (Object.keys(attacksByTarget).length === 0) {
+        const hasAction = ordered.some(s => data[`action_${s}`] && data[`action_${s}`] !== '');
+        if (hasAction) logs.push(`🛡️ 이번 턴은 공격이 없었습니다. 모두 무사합니다.`);
+        else logs.push(`⏱️ 행동을 선택하지 않아 턴이 넘어갑니다.`);
+    }
+
     const lA = hp['left_a'] > 0 || hp['left_b'] > 0;
     const rA = hp['right_a'] > 0 || hp['right_b'] > 0;
     const isGameOver = (!lA || !rA) || (round >= 5);
@@ -635,8 +685,13 @@ async function resolveTurn2v2(data, roomRef) {
     } else {
         const nextRound = round + 1;
         const nextFirst = (nextRound % 2 === 1) ? origFirst : origSecond;
-        resultMsg.push({ sender:"시스템", text:`— ROUND ${nextRound} 시작 — ${nextFirst==='left'?'왼팀':'오른팀'} 선공`, timestamp:ts+logs.length+1 });
-        await window.dbUtils.updateDoc(roomRef, { ...updBase, currentRound:nextRound, phase:"turn_a", turnFirst:nextFirst, messages:window.dbUtils.arrayUnion(...resultMsg) });
+        resultMsg.push({ sender:"시스템", text:`다음 라운드 준비 중...`, timestamp:ts+logs.length+1 });
+        const breakDeadline = Date.now() + 60000;
+        await window.dbUtils.updateDoc(roomRef, {
+            ...updBase, phase:"break", nextRound, nextFirst,
+            turnFirst: nextFirst, breakDeadline,
+            messages:window.dbUtils.arrayUnion(...resultMsg)
+        });
     }
 }
 
@@ -648,12 +703,15 @@ function startRealtimeUpdate(roomId) {
     window.dbUtils.onSnapshot(roomRef, (docSnap) => {
         const data=docSnap.data(); if(!data) return;
         const side=myProfile.side, phase=data.phase||"dice", status=data.status||"waiting";
+
         if (data.roomType==='2vs2') updateUI2v2(data,side,phase,status);
         else                         updateUI1v1(data,side,phase,status);
+
         // 모션
         if((status==='fighting'||status==='ended')&&data.lastMotionId){
             if(data.lastMotionId!==_lastMotionId){_lastMotionId=data.lastMotionId;playMotions(data.lastMotions||[]);}
         } else if(status==='waiting'){_lastMotionId=null;}
+
         // 채팅
         if(data.messages){
             const chatBox=document.getElementById('chat-messages');
@@ -671,7 +729,90 @@ function startRealtimeUpdate(roomId) {
         }
         document.getElementById('round-display').innerText=`ROUND ${data.currentRound||1} / 5`;
         updateResultOverlay(data,side);
+
+        // ── 타이머 처리 ──
+        const phaseKey = `${phase}_${data.turnDeadline||0}_${data.breakDeadline||0}`;
+        if (phaseKey !== _lastPhase) {
+            _lastPhase = phaseKey;
+            clearInterval(_timerInterval);
+
+            if (status === 'fighting' && (phase === 'turn_a' || phase === 'turn_b') && data.turnDeadline) {
+                // 5분 행동 타이머
+                startCountdown(data.turnDeadline, '남은 시간', () => {
+                    // 타임아웃: 내가 left_a 또는 left(1v1 선공 측) 라면 강제 결산
+                    if (side === 'left_a' || (data.roomType!=='2vs2' && side === data.turnFirst)) {
+                        forceResolve(data, roomRef);
+                    }
+                });
+            } else if (status === 'fighting' && phase === 'break' && data.breakDeadline) {
+                // 1분 라운드 휴식 타이머
+                startCountdown(data.breakDeadline, '다음 라운드까지', () => {
+                    if (side === 'left_a' || (data.roomType!=='2vs2' && side === 'left')) {
+                        startNextRound(data, roomRef);
+                    }
+                });
+            } else {
+                hideTimer();
+            }
+        }
     });
+}
+
+// ─── 타이머 함수 ───
+function startCountdown(deadline, label, onExpire) {
+    const timerEl  = document.getElementById('timer-2v2');
+    const labelEl  = document.getElementById('timer-label-2v2');
+    const numEl    = document.getElementById('timer-num-2v2');
+    if (!timerEl) return;
+    timerEl.classList.remove('hidden');
+    if (labelEl) labelEl.innerText = label;
+
+    clearInterval(_timerInterval);
+    _timerInterval = setInterval(() => {
+        const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        if (numEl) {
+            const m = Math.floor(remaining / 60);
+            const s = remaining % 60;
+            numEl.innerText = `${m}:${String(s).padStart(2,'0')}`;
+            numEl.style.color = remaining <= 30 ? '#dc2626' : '#3d5c3f';
+        }
+        if (remaining <= 0) {
+            clearInterval(_timerInterval);
+            timerEl.classList.add('hidden');
+            onExpire();
+        }
+    }, 500);
+}
+function hideTimer() {
+    clearInterval(_timerInterval);
+    const timerEl = document.getElementById('timer-2v2');
+    if (timerEl) timerEl.classList.add('hidden');
+}
+
+// 강제 결산 (타임아웃)
+async function forceResolve(data, roomRef) {
+    if (data.roomType === '2vs2') {
+        await resolveTurn2v2(data, roomRef);
+    } else {
+        await resolveTurn(data, roomRef);
+    }
+}
+
+// 1분 대기 후 다음 라운드 시작
+async function startNextRound(data, roomRef) {
+    const nextRound = data.nextRound;
+    const nextFirst = data.nextFirst;
+    const deadline  = Date.now() + 300000; // 5분 행동 타이머
+    const upd = {
+        phase:"turn_a", currentRound:nextRound, turnFirst:nextFirst,
+        turnDeadline: deadline, breakDeadline: null,
+        action_first:"", action_second:"",
+        messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`— ROUND ${nextRound} 시작 — ${nextFirst==='left'?'왼팀':'오른팀'} 선공`, timestamp:Date.now() })
+    };
+    if (data.roomType === '2vs2') {
+        Object.assign(upd, { action_left_a:"",action_left_b:"",action_right_a:"",action_right_b:"", target_left_a:"",target_left_b:"",target_right_a:"",target_right_b:"", left_done:false, right_done:false });
+    }
+    await window.dbUtils.updateDoc(roomRef, upd);
 }
 
 // ─── 1vs1 UI ───
