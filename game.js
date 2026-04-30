@@ -1159,16 +1159,16 @@ function switchChatTab(tab) {
     if (!noticeEl || !chatEl) return;
 
     if (tab === 'notice') {
-        noticeEl.classList.remove('hidden');
-        chatEl.classList.add('hidden');
-        btnN.style.background = '#57825a'; btnN.style.color = 'white';
-        btnC.style.background = 'transparent'; btnC.style.color = '#aaa';
+        noticeEl.style.display = '';
+        chatEl.style.display   = 'none';
+        btnN.style.background = '#57825a'; btnN.style.color = 'white'; btnN.style.outline = '';
+        btnC.style.background = 'rgba(0,0,0,0.3)'; btnC.style.color = '#aaa';
         noticeEl.scrollTop = noticeEl.scrollHeight;
     } else {
-        chatEl.classList.remove('hidden');
-        noticeEl.classList.add('hidden');
-        btnC.style.background = '#57825a'; btnC.style.color = 'white';
-        btnN.style.background = 'transparent'; btnN.style.color = '#aaa';
+        chatEl.style.display   = '';
+        noticeEl.style.display = 'none';
+        btnC.style.background = '#57825a'; btnC.style.color = 'white'; btnC.style.outline = '';
+        btnN.style.background = 'rgba(0,0,0,0.3)'; btnN.style.color = '#aaa';
         chatEl.scrollTop = chatEl.scrollHeight;
     }
 }

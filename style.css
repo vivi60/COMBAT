@@ -200,15 +200,15 @@ body {
     font-weight: 800;
 }
 
-/* 채팅 전송 버튼 */
-#chat-area button {
+/* 채팅 전송 버튼만 (탭 버튼 제외) */
+#chat-area button:not(.tab-btn) {
     background-color: var(--main-green) !important;
     color: white !important;
     border: 1px solid var(--light-green);
     transition: background 0.3s;
 }
 
-#chat-area button:hover {
+#chat-area button:not(.tab-btn):hover {
     background-color: var(--light-green) !important;
 }
 
