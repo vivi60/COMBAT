@@ -780,14 +780,15 @@ function startRealtimeUpdate(roomId) {
             if (status === 'fighting' && (phase === 'turn_a' || phase === 'turn_b') && data.turnDeadline) {
                 const capturedRoomRef = roomRef;
                 const capturedRoomType = data.roomType;
-                startCountdown(data.turnDeadline, () => {
+                startCountdown(data.turnDeadline, capturedRoomType, () => {
                     if (side === 'left_a' || (data.roomType!=='2vs2' && side === 'left')) {
                         forceResolve(capturedRoomRef, capturedRoomType);
                     }
                 });
             } else if (status === 'fighting' && phase === 'break' && data.breakDeadline) {
                 const capturedRoomRef2 = roomRef;
-                startCountdown(data.breakDeadline, async () => {
+                const capturedRoomType2 = data.roomType;
+                startCountdown(data.breakDeadline, capturedRoomType2, async () => {
                     if (side === 'left_a' || (data.roomType!=='2vs2' && side === 'left')) {
                         const snap = await window.dbUtils.getDoc(capturedRoomRef2);
                         if (snap.exists() && snap.data().phase === 'break') {
@@ -796,16 +797,18 @@ function startRealtimeUpdate(roomId) {
                     }
                 });
             } else {
-                hideTimer();
+                hideTimer(data.roomType);
             }
         }
     });
 }
 
 // ─── 타이머 함수 ───
-function startCountdown(deadline, onExpire) {
-    const timerEl  = document.getElementById('timer-2v2');
-    const numEl    = document.getElementById('timer-num-2v2');
+function startCountdown(deadline, roomType, onExpire) {
+    const timerId = roomType === '2vs2' ? 'timer-2v2' : 'timer-1v1';
+    const numId   = roomType === '2vs2' ? 'timer-num-2v2' : 'timer-1v1';
+    const timerEl = document.getElementById(timerId);
+    const numEl   = document.getElementById(numId);
     if (!timerEl) return;
     timerEl.classList.remove('hidden');
 
@@ -825,10 +828,14 @@ function startCountdown(deadline, onExpire) {
         }
     }, 500);
 }
-function hideTimer() {
+function hideTimer(roomType) {
     clearInterval(_timerInterval);
-    const timerEl = document.getElementById('timer-2v2');
+    const timerId = roomType === '2vs2' ? 'timer-2v2' : 'timer-1v1';
+    const timerEl = document.getElementById(timerId);
     if (timerEl) timerEl.classList.add('hidden');
+    // 둘 다 숨기기 (roomType 없을 때 대비)
+    document.getElementById('timer-2v2')?.classList.add('hidden');
+    document.getElementById('timer-1v1')?.classList.add('hidden');
 }
 
 // 강제 결산 (타임아웃) — 최신 데이터 읽고 결산
@@ -843,10 +850,32 @@ async function forceResolve(roomRef, roomType) {
         if (roomType === '2vs2') {
             await forceResolve2v2(d, roomRef);
         } else {
-            await resolveTurn(d, roomRef);
+            await forceResolve1v1(d, roomRef);
         }
     } catch(e) {
         console.error("forceResolve 오류:", e);
+    }
+}
+
+// 1vs1 강제 결산
+async function forceResolve1v1(d, roomRef) {
+    const ts = Date.now();
+    if (d.phase === 'turn_a') {
+        // 선공이 행동 안 함 → turn_b로 강제 전환
+        const firstSide  = d.firstSide || d.turnFirst;
+        const secondSide = firstSide === 'left' ? 'right' : 'left';
+        await window.dbUtils.updateDoc(roomRef, {
+            phase:'turn_b', turnFirst:secondSide,
+            turnDeadline: ts + 300000,
+            messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`⏱️ 시간 초과 — 선공 행동 종료, 후공 차례`, timestamp:ts })
+        });
+    } else {
+        // turn_b 타임아웃 → 즉시 결산
+        await window.dbUtils.updateDoc(roomRef, {
+            messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`⏱️ 시간 초과 — 후공 행동 종료, 결산합니다`, timestamp:ts })
+        });
+        const freshSnap = await window.dbUtils.getDoc(roomRef);
+        if (freshSnap.exists()) await resolveTurn(freshSnap.data(), roomRef);
     }
 }
 
@@ -954,12 +983,13 @@ function updateUI1v1(data,side,phase,status){
         } else {btns.classList.add('hidden');btns.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='1';b.style.outline='';});}
     });
     // HP
-    const hpL=data.hp_left??100,hpR=data.hp_right??100;
-    document.getElementById('hp-left').style.width=Math.max(0,hpL)+"%";
-    document.getElementById('hp-right').style.width=Math.max(0,hpR)+"%";
+    const hpL=data.hp_left??100, hpR=data.hp_right??100;
+    const maxL=data.start_hp_left||100, maxR=data.start_hp_right||100;
+    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/maxL)*100))+"%";
+    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/maxR)*100))+"%";
     const hlt=document.getElementById('hp-left-text'),hrt=document.getElementById('hp-right-text');
-    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / 100`;
-    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / 100`;
+    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / ${maxL}`;
+    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / ${maxR}`;
 }
 
 // ─── 2vs2 UI ───
@@ -973,9 +1003,11 @@ function updateUI2v2(data,side,phase,status){
         const raw=data[`name_${s}`];
         if(raw&&raw.includes('|')){const[fn,num]=raw.split('|');if(nEl)nEl.innerText=fn;if(iEl)iEl.innerHTML=`<img src="image/${fn.split(' ')[0]}${num}.png" class="w-full h-full object-cover">`;}
         else{if(nEl)nEl.innerText=raw||"대기 중...";if(!raw&&iEl)iEl.innerHTML='<span class="text-gray-500 text-xs">No Image</span>';}
-        const hp=Math.max(0,data[`hp_${s}`]??100);
-        if(hpBar)hpBar.style.width=hp+"%";
-        if(hpTxt)hpTxt.innerText=`${hp}`;
+        const hp    = Math.max(0, data[`hp_${s}`]??100);
+        const maxHp = data[`start_hp_${s}`] || 100;
+        const pct   = Math.max(0, Math.min(100, (hp / maxHp) * 100));
+        if(hpBar) hpBar.style.width = pct + "%";
+        if(hpTxt) hpTxt.innerText  = `${hp} / ${maxHp}`;
         const wrapper=iEl?.parentElement?.parentElement;
         if(wrapper)wrapper.style.opacity=hp<=0?'0.4':'1';
     });
