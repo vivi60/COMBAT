@@ -952,7 +952,12 @@ function updateUI1v1(data,side,phase,status){
     ['left','right'].forEach(s=>{
         const dBox=document.getElementById(`dice-${s}`),badge=document.getElementById(`first-badge-${s}`);
         if(!dBox||!badge) return;
-        if(data.isDetermined){dBox.style.display='none';badge.classList.toggle('hidden',data.turnFirst!==s);}
+        if(data.isDetermined){
+            dBox.style.display='none';
+            // 배지: firstSide 기준 (라운드 내내 고정)
+            const firstSide = data.firstSide || data.turnFirst;
+            badge.classList.toggle('hidden', firstSide !== s);
+        }
         else{dBox.style.display='';dBox.style.opacity=status==='fighting'?'1':'0.35';dBox.style.cursor=status==='fighting'?'pointer':'not-allowed';dBox.innerText=data[`dice_${s}`]>0?data[`dice_${s}`]:'?';if(data[`dice_${s}`]>0)dBox.classList.remove('dice-rolling');badge.classList.add('hidden');}
     });
     // 레디
@@ -974,13 +979,33 @@ function updateUI1v1(data,side,phase,status){
         const btns=document.getElementById(`btns-${s}`); if(!btns) return;
         const isFighting=status==='fighting'&&(phase==='turn_a'||phase==='turn_b');
         if(isFighting&&side===s){
-            const iAmFirst=data.turnFirst===s, myAct=iAmFirst?data.action_first:data.action_second, canAct=iAmFirst?!myAct:(!!data.action_first&&!myAct);
+            // turnFirst = 현재 행동해야 하는 쪽
+            const isMyTurn = data.turnFirst === s;
+            // 내가 이미 행동했는지: turn_a에서 action_first, turn_b에서 action_second
+            const myAct = (phase==='turn_a') ? (data.turnFirst===s ? data.action_first : null) : (data.turnFirst===s ? data.action_second : data.action_first);
+            // 실제로 내가 선택한 행동값 (표시용)
+            const myActual = phase==='turn_a' ? (s===data.firstSide ? data.action_first : null) : (s===data.firstSide ? data.action_first : data.action_second);
+            const canAct = isMyTurn && !myActual;
             btns.classList.remove('hidden');
             btns.querySelectorAll('button').forEach((b,idx)=>{
-                if(canAct){b.disabled=idx===3&&(data.currentRound||1)<3;b.style.opacity=b.disabled?'0.4':'1';b.style.outline='';}
-                else{b.disabled=true;if(myAct){b.style.opacity=b.textContent.trim()===myAct?'1':'0.3';b.style.outline=b.textContent.trim()===myAct?'3px solid white':'';}else{b.style.opacity='0.4';b.style.outline='';}}
+                if(canAct){
+                    b.disabled=idx===3&&(data.currentRound||1)<3;
+                    b.style.opacity=b.disabled?'0.4':'1';
+                    b.style.outline='';
+                } else {
+                    b.disabled=true;
+                    if(myActual){
+                        b.style.opacity=b.textContent.trim()===myActual?'1':'0.3';
+                        b.style.outline=b.textContent.trim()===myActual?'3px solid white':'';
+                    } else {
+                        b.style.opacity='0.4'; b.style.outline='';
+                    }
+                }
             });
-        } else {btns.classList.add('hidden');btns.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='1';b.style.outline='';});}
+        } else {
+            btns.classList.add('hidden');
+            btns.querySelectorAll('button').forEach(b=>{b.disabled=false;b.style.opacity='1';b.style.outline='';});
+        }
     });
     // HP
     const hpL=data.hp_left??100, hpR=data.hp_right??100;
@@ -1224,15 +1249,36 @@ async function startGame(){
         if(dBox){dBox.style.display='';dBox.innerText='?';dBox.classList.remove('dice-rolling');}
         document.getElementById(`first-badge-${s}`)?.classList.add('hidden');
     });
+
+    // 최신 maxHp를 characters 컬렉션에서 재조회
+    async function getFreshHp(nameField) {
+        const raw = d[nameField];
+        if (!raw) return 100;
+        const charName = raw.split('|')[0];
+        try {
+            const cs = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "characters", charName));
+            return (cs.exists() && cs.data().maxHp !== undefined) ? cs.data().maxHp : 100;
+        } catch { return 100; }
+    }
+
     const upd={status:"fighting",ready_left:false,ready_right:false,dice_left:0,dice_right:0,isDetermined:false,firstSide:"",turnFirst:"",phase:"dice",currentRound:1,subTurn:1,origRoundFirst:"",lastMotions:[],lastMotionId:0,messages:window.dbUtils.arrayUnion({sender:"시스템",text:"⚔️ 전투 시작! 다이스를 굴려 선공을 결정하세요.",timestamp:Date.now()})};
-    if(d.roomType==='1vs1'){upd.hp_left=d.start_hp_left??100;upd.hp_right=d.start_hp_right??100;upd.action_first="";upd.action_second="";}
-    else{
-        upd.hp_left_a=d.start_hp_left_a??100;upd.hp_left_b=d.start_hp_left_b??100;
-        upd.hp_right_a=d.start_hp_right_a??100;upd.hp_right_b=d.start_hp_right_b??100;
+
+    if(d.roomType==='1vs1'){
+        const hL = await getFreshHp('name_left');
+        const hR = await getFreshHp('name_right');
+        upd.hp_left=hL; upd.hp_right=hR;
+        upd.start_hp_left=hL; upd.start_hp_right=hR;
+        upd.action_first=""; upd.action_second="";
+    } else {
+        const hLA = await getFreshHp('name_left_a');
+        const hLB = await getFreshHp('name_left_b');
+        const hRA = await getFreshHp('name_right_a');
+        const hRB = await getFreshHp('name_right_b');
+        upd.hp_left_a=hLA; upd.hp_left_b=hLB; upd.hp_right_a=hRA; upd.hp_right_b=hRB;
+        upd.start_hp_left_a=hLA; upd.start_hp_left_b=hLB; upd.start_hp_right_a=hRA; upd.start_hp_right_b=hRB;
         upd.action_left_a="";upd.action_left_b="";upd.action_right_a="";upd.action_right_b="";
         upd.target_left_a="";upd.target_left_b="";upd.target_right_a="";upd.target_right_b="";
         upd.left_done=false;upd.right_done=false;
-        // 개인별 주사위 초기화
         upd.dice_left_a=0;upd.dice_left_b=0;upd.dice_right_a=0;upd.dice_right_b=0;
     }
     await window.dbUtils.updateDoc(roomRef,upd);
