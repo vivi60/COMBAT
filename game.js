@@ -6,6 +6,7 @@ let currentRoomId = "";
 let _lastMotionId = null;
 let _pendingAction2v2 = null;
 let _pendingRoomId = "";
+let _currentRoomData = null; // 최신 룸 데이터 캐시 (타겟 버튼 비활성화용)
 let _timerInterval = null;   // 클라이언트 타이머 인터벌
 let _lastPhase = null;       // 페이즈 변경 감지용
 
@@ -313,7 +314,15 @@ async function selectAction2v2(slot, action) {
         enemies.forEach(([eshort, eslot]) => {
             const nameEl = document.getElementById(`name-${eslot}`);
             const tEl = document.getElementById(`tname-${eshort}-${ms}`);
-            if (tEl && nameEl) tEl.innerText = nameEl.innerText || eslot;
+            if (!tEl) return;
+            const btn = tEl.parentElement;
+            const eHp = _currentRoomData ? (_currentRoomData[`hp_${eslot}`]??100) : 100;
+            const dead = eHp <= 0;
+            tEl.innerText = (nameEl ? nameEl.innerText : eslot) + (dead ? ' (사망)' : '');
+            btn.disabled = dead;
+            btn.style.opacity = dead ? '0.35' : '1';
+            btn.style.background = dead ? '#4b5563' : '#b45309';
+            btn.style.cursor = dead ? 'not-allowed' : 'pointer';
         });
         _pendingAction2v2 = '공격';
         showPanel(`atk-targets-${slot}`, true);
@@ -329,7 +338,15 @@ async function selectAction2v2(slot, action) {
         allies.forEach(([ashort, aslot]) => {
             const nameEl = document.getElementById(`name-${aslot}`);
             const tEl = document.getElementById(`dname-${ashort}-${ms}`);
-            if (tEl && nameEl) tEl.innerText = aslot === slot ? `${nameEl.innerText}(나)` : nameEl.innerText;
+            if (!tEl) return;
+            const btn = tEl.parentElement;
+            const aHp = _currentRoomData ? (_currentRoomData[`hp_${aslot}`]??100) : 100;
+            const dead = aHp <= 0;
+            tEl.innerText = dead ? `${nameEl?.innerText||aslot}(사망)` : (aslot===slot ? `${nameEl?.innerText||aslot}(나)` : (nameEl?.innerText||aslot));
+            btn.disabled = dead;
+            btn.style.opacity = dead ? '0.35' : '1';
+            btn.style.background = dead ? '#4b5563' : '#1d4ed8';
+            btn.style.cursor = dead ? 'not-allowed' : 'pointer';
         });
         _pendingAction2v2 = '방어';
         showPanel(`def-targets-${slot}`, true);
@@ -389,7 +406,9 @@ async function commitAction2v2(slot, action, target) {
             if (myTeam !== d.turnFirst) throw new Error("상대팀_차례");
 
             const partnerSlot = slot.endsWith('_a') ? slot.replace('_a','_b') : slot.replace('_b','_a');
-            const partnerDone = !!d[`action_${partnerSlot}`];
+            const partnerHp   = d[`hp_${partnerSlot}`] ?? 100;
+            // 파트너가 행동했거나 사망(HP 0)이면 완료로 간주
+            const partnerDone = !!d[`action_${partnerSlot}`] || partnerHp <= 0;
             const update = { [`action_${slot}`]:action, [`target_${slot}`]:target };
 
             if (partnerDone) {
@@ -530,9 +549,9 @@ async function resolveTurn(data, roomRef) {
     } else {
         const subTurn = data.subTurn || 1;
         if (subTurn === 1) {
-            // 1번째 미니턴 끝 → 선후공 교체 후 2번째 미니턴
             const newFirst = origFirst === 'left' ? 'right' : 'left';
-            // 미니턴 교체 메시지 없음
+            const newFirstName = (data[`name_${newFirst}`]||'').split('|')[0];
+            resultMsg.push({sender:"시스템", text:`↩️ ${newFirstName}의 턴 시작!`, timestamp:ts+logs.length+1});
             const miniDeadline = Date.now() + 300000;
             await window.dbUtils.updateDoc(roomRef,{
                 hp_left,hp_right, action_first:"", action_second:"",
@@ -641,6 +660,7 @@ async function resolveTurn2v2(data, roomRef) {
                 hp[tgt] = Math.max(0, hp[tgt] - totalAtk);
                 motions.push({ side:tgt, anim:'hit', popup:`-${totalAtk}`, popupType:'damage' });
                 logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 실패! -${totalAtk}HP (${atkRolls.join('+')})`);
+                if(hp[tgt]<=0) logs.push(`💀 ${name(tgt)} 전투 불능!`);
             }
         } else if (defGroup.length > 0 || tgtAction === '방어' && tgtDefTarget === tgt) {
             // 방어: defGroup = 이 타겟을 지키는 방어자들
@@ -658,6 +678,7 @@ async function resolveTurn2v2(data, roomRef) {
             if (dmg > 0) {
                 motions.push({ side:tgt, anim:'hit', popup:`-${dmg}`, popupType:'damage' });
                 logs.push(`${icon['공격']} [공격 ${atkRolls.join('+')}=${totalAtk}] - [방어 ${defRolls.join('+')}=${totalDef}] = ${dmg} 데미지 → ${name(tgt)}`);
+                if(hp[tgt]<=0) logs.push(`💀 ${name(tgt)} 전투 불능!`);
             } else {
                 motions.push({ side:tgt, anim:'defend', popup:'막음!', popupType:'defend' });
                 logs.push(`${icon['방어']} [방어 ${defRolls.join('+')}=${totalDef}] vs [공격 ${totalAtk}] → 완전히 막아냄!`);
@@ -667,6 +688,7 @@ async function resolveTurn2v2(data, roomRef) {
             hp[tgt] = Math.max(0, hp[tgt] - totalAtk);
             motions.push({ side:tgt, anim:'hit', popup:`-${totalAtk}`, popupType:'damage' });
             logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: -${totalAtk}HP (${atkRolls.join('+')})`);
+            if(hp[tgt]<=0) logs.push(`💀 ${name(tgt)} 전투 불능!`);
         }
     }
 
@@ -745,6 +767,7 @@ function startRealtimeUpdate(roomId) {
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
     window.dbUtils.onSnapshot(roomRef, (docSnap) => {
         const data=docSnap.data(); if(!data) return;
+        _currentRoomData = data; // 타겟 버튼 비활성화용 캐시
         const side=myProfile.side, phase=data.phase||"dice", status=data.status||"waiting";
 
         if (data.roomType==='2vs2') updateUI2v2(data,side,phase,status);
@@ -999,12 +1022,11 @@ function updateUI1v1(data,side,phase,status){
     });
     // HP
     const hpL=data.hp_left??100, hpR=data.hp_right??100;
-    const maxL=data.start_hp_left||100, maxR=data.start_hp_right||100;
-    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/maxL)*100))+"%";
-    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/maxR)*100))+"%";
+    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/100)*100))+"%";
+    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/100)*100))+"%";
     const hlt=document.getElementById('hp-left-text'),hrt=document.getElementById('hp-right-text');
-    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / ${maxL}`;
-    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / ${maxR}`;
+    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / 100`;
+    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / 100`;
     // 사망/도주 시 이미지 회색 처리
     const imgL = document.getElementById('img-left'), imgR = document.getElementById('img-right');
     if(imgL) imgL.style.filter = hpL<=0 ? 'grayscale(100%) brightness(0.5)' : '';
@@ -1023,10 +1045,10 @@ function updateUI2v2(data,side,phase,status){
         if(raw&&raw.includes('|')){const[fn,num]=raw.split('|');if(nEl)nEl.innerText=fn;if(iEl)iEl.innerHTML=`<img src="image/${fn.split(' ')[0]}${num}.png" class="w-full h-full object-cover">`;}
         else{if(nEl)nEl.innerText=raw||"대기 중...";if(!raw&&iEl)iEl.innerHTML='<span class="text-gray-500 text-xs">No Image</span>';}
         const hp    = Math.max(0, data[`hp_${s}`]??100);
-        const maxHp = data[`start_hp_${s}`] || 100;
+        const maxHp = 100;
         const pct   = Math.max(0, Math.min(100, (hp / maxHp) * 100));
         if(hpBar) hpBar.style.width = pct + "%";
-        if(hpTxt) hpTxt.innerText  = `${hp} / ${maxHp}`;
+        if(hpTxt) hpTxt.innerText  = `${hp} / 100`;
         const wrapper=iEl?.parentElement?.parentElement;
         if(wrapper) wrapper.style.opacity = hp<=0 ? '0.5' : '1';
         // 사망/도주 시 이미지 회색 처리
