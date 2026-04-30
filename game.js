@@ -244,7 +244,9 @@ async function selectAction(action) {
             if (!['turn_a','turn_b'].includes(d.phase)) throw new Error("페이즈 오류");
             if (action === '도주' && (d.currentRound||1) < 3) throw new Error("도주_불가");
             if (d.turnFirst !== side) throw new Error("상대팀_차례");
-            if (d.action_first) throw new Error("이미_선택");
+            // turn_a에선 action_first, turn_b에선 action_second가 이미 있으면 중복
+            const alreadyDone = d.phase === 'turn_a' ? !!d.action_first : !!d.action_second;
+            if (alreadyDone) throw new Error("이미_선택");
 
             const update = d.phase === 'turn_a' ? { action_first: action } : { action_second: action };
 
