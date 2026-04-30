@@ -529,7 +529,7 @@ async function resolveTurn(data, roomRef) {
         if (subTurn === 1) {
             // 1번째 미니턴 끝 → 선후공 교체 후 2번째 미니턴
             const newFirst = origFirst === 'left' ? 'right' : 'left';
-            resultMsg.push({sender:"시스템",text:`↩️ 선후공 교체 — ${(data[`name_${newFirst}`]||'').split('|')[0]} 선공으로 2번째 미니턴!`,timestamp:ts+logs.length+1});
+            // 미니턴 교체 메시지 없음
             const miniDeadline = Date.now() + 300000;
             await window.dbUtils.updateDoc(roomRef,{
                 hp_left,hp_right, action_first:"", action_second:"",
@@ -708,7 +708,7 @@ async function resolveTurn2v2(data, roomRef) {
         if (subTurn === 1) {
             // 1번째 미니턴 끝 → 2번째 미니턴 (선후공 교체), 같은 라운드
             const newFirst = origFirst === 'left' ? 'right' : 'left';
-            resultMsg.push({ sender:"시스템", text:`↩️ 선후공 교체 — ${newFirst==='left'?'왼팀':'오른팀'} 선공으로 2번째 미니턴!`, timestamp:ts+logs.length+1 });
+            resultMsg.push({ sender:"시스템", text:`↩️ 선후공 교체`, timestamp:ts+logs.length+1 });
             const miniDeadline = Date.now() + 300000;
             await window.dbUtils.updateDoc(roomRef, {
                 ...updBase, phase:"turn_a", subTurn:2,
@@ -836,18 +836,56 @@ async function forceResolve(roomRef, roomType) {
     try {
         const snap = await window.dbUtils.getDoc(roomRef);
         if (!snap.exists()) return;
-        const freshData = snap.data();
-        // 이미 페이즈가 바뀌었으면 중복 실행 방지
-        if (!['turn_a','turn_b'].includes(freshData.phase)) return;
-        if (freshData.status !== 'fighting') return;
+        const d = snap.data();
+        if (!['turn_a','turn_b'].includes(d.phase)) return;
+        if (d.status !== 'fighting') return;
 
         if (roomType === '2vs2') {
-            await resolveTurn2v2(freshData, roomRef);
+            await forceResolve2v2(d, roomRef);
         } else {
-            await resolveTurn(freshData, roomRef);
+            await resolveTurn(d, roomRef);
         }
     } catch(e) {
         console.error("forceResolve 오류:", e);
+    }
+}
+
+// 2v2 강제 결산 — turn_a에서 타임아웃 시 turn_b로 즉시 넘기고, turn_b에서 타임아웃 시 바로 결산
+async function forceResolve2v2(d, roomRef) {
+    const ts = Date.now();
+    if (d.phase === 'turn_a') {
+        // 선공팀이 아무도 안 골랐거나 일부만 골랐어도 turn_b로 강제 전환
+        const firstTeam  = d.turnFirst;
+        const secondTeam = firstTeam === 'left' ? 'right' : 'left';
+        const update = {
+            phase: 'turn_b',
+            turnFirst: secondTeam,
+            turnDeadline: ts + 300000,
+            [`${firstTeam}_done`]: true,
+            messages: window.dbUtils.arrayUnion({
+                sender: "시스템",
+                text: `⏱️ 시간 초과 — 선공팀 행동 종료, ${secondTeam==='left'?'왼팀':'오른팀'} 차례`,
+                timestamp: ts
+            })
+        };
+        await window.dbUtils.updateDoc(roomRef, update);
+    } else {
+        // turn_b 타임아웃 → 바로 결산 (후공팀 행동 종료)
+        const secondTeam = d.turnFirst;
+        const update = {
+            [`${secondTeam}_done`]: true,
+            messages: window.dbUtils.arrayUnion({
+                sender: "시스템",
+                text: `⏱️ 시간 초과 — 후공팀 행동 종료, 결산합니다`,
+                timestamp: ts
+            })
+        };
+        // 최신 데이터에 update 머지해서 결산
+        await window.dbUtils.updateDoc(roomRef, update);
+        const freshSnap = await window.dbUtils.getDoc(roomRef);
+        if (freshSnap.exists()) {
+            await resolveTurn2v2(freshSnap.data(), roomRef);
+        }
     }
 }
 
