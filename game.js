@@ -99,6 +99,7 @@ async function confirmTeamSelect(teamSide) {
 // ═══════════════════════════════════════════
 async function joinRoom(roomId, side) {
     currentRoomId = roomId; _lastMotionId = null; _pendingAction2v2 = null;
+    _lastNoticeCount = 0; _lastChatCount = 0; _currentChatTab = 'notice';
     const roomRef = window.dbUtils.doc(window.db, "rooms", roomId);
     try {
         let updateData = {};
@@ -755,20 +756,7 @@ function startRealtimeUpdate(roomId) {
         } else if(status==='waiting'){_lastMotionId=null;}
 
         // 채팅
-        if(data.messages){
-            const chatBox=document.getElementById('chat-messages');
-            if(chatBox.children.length!==data.messages.length){
-                chatBox.innerHTML="";
-                data.messages.forEach(msg=>{
-                    const log=document.createElement('div'); log.className="text-white py-1 border-b border-white/10";
-                    if(msg.sender==="시스템") log.innerHTML=`<span class="text-yellow-400 font-bold">[안내] ${msg.text}</span>`;
-                    else if(msg.sender==="관리자") log.innerHTML=`<span class="text-red-500 font-bold">${msg.sender}:</span> <span class="text-red-200">${msg.text}</span>`;
-                    else log.innerHTML=`<span class="text-green-400 font-bold">${msg.sender}:</span> ${msg.text}`;
-                    chatBox.appendChild(log);
-                });
-                chatBox.scrollTop=chatBox.scrollHeight;
-            }
-        }
+        if(data.messages) renderChatMessages(data.messages);
         const sub = data.subTurn || 1;
         document.getElementById('round-display').innerText = `ROUND ${data.currentRound||1} / 5`;
         updateResultOverlay(data,side);
@@ -1155,6 +1143,85 @@ function playMotions(motions){
 // ═══════════════════════════════════════════
 // 방 목록 / 초기화
 // ═══════════════════════════════════════════
+// ═══════════════════════════════════════════
+// 채팅 탭
+// ═══════════════════════════════════════════
+let _currentChatTab = 'notice'; // 현재 탭
+let _lastNoticeCount = 0;
+let _lastChatCount = 0;
+
+function switchChatTab(tab) {
+    _currentChatTab = tab;
+    const noticeEl = document.getElementById('tab-notice');
+    const chatEl   = document.getElementById('tab-chat');
+    const btnN     = document.getElementById('tab-btn-notice');
+    const btnC     = document.getElementById('tab-btn-chat');
+    if (!noticeEl || !chatEl) return;
+
+    if (tab === 'notice') {
+        noticeEl.classList.remove('hidden');
+        chatEl.classList.add('hidden');
+        btnN.style.background = '#57825a'; btnN.style.color = 'white';
+        btnC.style.background = 'transparent'; btnC.style.color = '#aaa';
+        noticeEl.scrollTop = noticeEl.scrollHeight;
+    } else {
+        chatEl.classList.remove('hidden');
+        noticeEl.classList.add('hidden');
+        btnC.style.background = '#57825a'; btnC.style.color = 'white';
+        btnN.style.background = 'transparent'; btnN.style.color = '#aaa';
+        chatEl.scrollTop = chatEl.scrollHeight;
+    }
+}
+
+function renderChatMessages(messages) {
+    const noticeEl = document.getElementById('tab-notice');
+    const chatEl   = document.getElementById('tab-chat');
+    if (!noticeEl || !chatEl || !messages) return;
+
+    // 메시지를 안내/채팅으로 분리
+    const noticeMs = messages.filter(m => m.sender === '시스템');
+    const chatMs   = messages.filter(m => m.sender !== '시스템');
+
+    // 안내 탭 업데이트
+    if (noticeMs.length !== _lastNoticeCount) {
+        _lastNoticeCount = noticeMs.length;
+        noticeEl.innerHTML = '';
+        noticeMs.forEach(msg => {
+            const el = document.createElement('div');
+            el.className = 'py-1 border-b border-white/10';
+            el.innerHTML = `<span class="text-yellow-400 font-bold">[안내] ${msg.text}</span>`;
+            noticeEl.appendChild(el);
+        });
+        if (_currentChatTab === 'notice') noticeEl.scrollTop = noticeEl.scrollHeight;
+        // 새 안내 있으면 탭 버튼 강조
+        const btnN = document.getElementById('tab-btn-notice');
+        if (btnN && _currentChatTab !== 'notice') btnN.style.outline = '2px solid #facc15';
+    }
+
+    // 채팅 탭 업데이트
+    if (chatMs.length !== _lastChatCount) {
+        _lastChatCount = chatMs.length;
+        chatEl.innerHTML = '';
+        chatMs.forEach(msg => {
+            const el = document.createElement('div');
+            el.className = 'py-1 border-b border-white/10 text-white';
+            if (msg.sender === '관리자') {
+                el.innerHTML = `<span class="text-red-500 font-bold">${msg.sender}:</span> <span class="text-red-200">${msg.text}</span>`;
+            } else {
+                el.innerHTML = `<span class="text-green-400 font-bold">${msg.sender}:</span> ${msg.text}`;
+            }
+            chatEl.appendChild(el);
+        });
+        if (_currentChatTab === 'chat') chatEl.scrollTop = chatEl.scrollHeight;
+        // 새 채팅 있으면 탭 버튼 강조
+        const btnC = document.getElementById('tab-btn-chat');
+        if (btnC && _currentChatTab !== 'chat') btnC.style.outline = '2px solid #4ade80';
+    }
+
+    // 현재 탭 버튼 강조 해제
+    const activeBtn = document.getElementById(`tab-btn-${_currentChatTab}`);
+    if (activeBtn) activeBtn.style.outline = '';
+}
 function setupChatEventListeners(){
     document.getElementById('chat-input')?.addEventListener('keypress',e=>{if(e.key==='Enter')sendChat();});
 }
@@ -1190,7 +1257,7 @@ function init(){listenToRoomList();setupChatEventListeners();}
 window.onload=init;
 
 // 전역 바인딩
-window.rollDice=rollDice; window.rollDice2v2=rollDice2v2; window.createRoom=createRoom; window.joinRoom=joinRoom;
+window.rollDice=rollDice; window.rollDice2v2=rollDice2v2; window.switchChatTab=switchChatTab; window.createRoom=createRoom; window.joinRoom=joinRoom;
 window.sendChat=sendChat; window.selectCharacter=selectCharacter;
 window.backToLobby=backToLobby; window.backToCharacterSelection=backToCharacterSelection;
 window.openCreateModal=openCreateModal; window.closeCreateModal=closeCreateModal;

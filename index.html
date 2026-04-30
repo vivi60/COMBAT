@@ -453,9 +453,22 @@
         </div>
 
         <!-- 채팅창 — 화면 바닥에 고정 -->
-        <div id="chat-area" class="flex-shrink-0 w-full bg-black/50 border-t border-gray-600 p-2 flex flex-col" style="height:180px;">
-            <div id="chat-messages" class="flex-1 overflow-y-auto text-sm space-y-1 mb-2"></div>
-            <div class="flex gap-2 flex-shrink-0">
+        <div id="chat-area" class="flex-shrink-0 w-full bg-black/50 border-t border-gray-600 flex flex-col" style="height:180px;">
+            <!-- 탭 버튼 -->
+            <div class="flex flex-shrink-0 border-b border-gray-600">
+                <button id="tab-btn-notice" onclick="switchChatTab('notice')"
+                    class="px-4 py-1 text-xs font-bold border-r border-gray-600 transition"
+                    style="background:#57825a;color:white;">📢 안내</button>
+                <button id="tab-btn-chat" onclick="switchChatTab('chat')"
+                    class="px-4 py-1 text-xs font-bold transition"
+                    style="background:transparent;color:#aaa;">💬 채팅</button>
+            </div>
+            <!-- 안내 탭 -->
+            <div id="tab-notice" class="flex-1 overflow-y-auto text-sm space-y-1 p-2"></div>
+            <!-- 채팅 탭 -->
+            <div id="tab-chat" class="hidden flex-1 overflow-y-auto text-sm space-y-1 p-2"></div>
+            <!-- 입력창 -->
+            <div class="flex gap-2 flex-shrink-0 p-2 pt-0">
                 <input type="text" id="chat-input" class="flex-grow bg-gray-800 border-none px-3 py-1 text-sm outline-none" placeholder="메시지를 입력하세요...">
                 <button onclick="sendChat()" class="px-4 text-sm font-bold">전송</button>
             </div>
