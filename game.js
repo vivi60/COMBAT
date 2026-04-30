@@ -1005,6 +1005,10 @@ function updateUI1v1(data,side,phase,status){
     const hlt=document.getElementById('hp-left-text'),hrt=document.getElementById('hp-right-text');
     if(hlt)hlt.innerText=`${Math.max(0,hpL)} / ${maxL}`;
     if(hrt)hrt.innerText=`${Math.max(0,hpR)} / ${maxR}`;
+    // 사망/도주 시 이미지 회색 처리
+    const imgL = document.getElementById('img-left'), imgR = document.getElementById('img-right');
+    if(imgL) imgL.style.filter = hpL<=0 ? 'grayscale(100%) brightness(0.5)' : '';
+    if(imgR) imgR.style.filter = hpR<=0 ? 'grayscale(100%) brightness(0.5)' : '';
 }
 
 // ─── 2vs2 UI ───
@@ -1024,7 +1028,9 @@ function updateUI2v2(data,side,phase,status){
         if(hpBar) hpBar.style.width = pct + "%";
         if(hpTxt) hpTxt.innerText  = `${hp} / ${maxHp}`;
         const wrapper=iEl?.parentElement?.parentElement;
-        if(wrapper)wrapper.style.opacity=hp<=0?'0.4':'1';
+        if(wrapper) wrapper.style.opacity = hp<=0 ? '0.5' : '1';
+        // 사망/도주 시 이미지 회색 처리
+        if(iEl) iEl.style.filter = hp<=0 ? 'grayscale(100%) brightness(0.5)' : '';
     });
     // 개인 주사위 표시 (2v2)
     ['left_a','left_b','right_a','right_b'].forEach(s=>{
