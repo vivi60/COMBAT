@@ -768,8 +768,7 @@ function startRealtimeUpdate(roomId) {
             }
         }
         const sub = data.subTurn || 1;
-        const subLabel = sub === 1 ? '① 1번째 미니턴' : '② 2번째 미니턴';
-        document.getElementById('round-display').innerText = `ROUND ${data.currentRound||1} / 5  ${subLabel}`;
+        document.getElementById('round-display').innerText = `ROUND ${data.currentRound||1} / 5`;
         updateResultOverlay(data,side);
 
         // ── 타이머 처리 ──
@@ -779,18 +778,21 @@ function startRealtimeUpdate(roomId) {
             clearInterval(_timerInterval);
 
             if (status === 'fighting' && (phase === 'turn_a' || phase === 'turn_b') && data.turnDeadline) {
-                // 5분 행동 타이머
+                const capturedRoomRef = roomRef;
+                const capturedRoomType = data.roomType;
                 startCountdown(data.turnDeadline, () => {
-                    // 타임아웃: 내가 left_a 또는 left(1v1 선공 측) 라면 강제 결산
-                    if (side === 'left_a' || (data.roomType!=='2vs2' && side === data.turnFirst)) {
-                        forceResolve(data, roomRef);
+                    if (side === 'left_a' || (data.roomType!=='2vs2' && side === 'left')) {
+                        forceResolve(capturedRoomRef, capturedRoomType);
                     }
                 });
             } else if (status === 'fighting' && phase === 'break' && data.breakDeadline) {
-                // 1분 라운드 휴식 타이머
-                startCountdown(data.breakDeadline, () => {
+                const capturedRoomRef2 = roomRef;
+                startCountdown(data.breakDeadline, async () => {
                     if (side === 'left_a' || (data.roomType!=='2vs2' && side === 'left')) {
-                        startNextRound(data, roomRef);
+                        const snap = await window.dbUtils.getDoc(capturedRoomRef2);
+                        if (snap.exists() && snap.data().phase === 'break') {
+                            startNextRound(snap.data(), capturedRoomRef2);
+                        }
                     }
                 });
             } else {
@@ -829,12 +831,23 @@ function hideTimer() {
     if (timerEl) timerEl.classList.add('hidden');
 }
 
-// 강제 결산 (타임아웃)
-async function forceResolve(data, roomRef) {
-    if (data.roomType === '2vs2') {
-        await resolveTurn2v2(data, roomRef);
-    } else {
-        await resolveTurn(data, roomRef);
+// 강제 결산 (타임아웃) — 최신 데이터 읽고 결산
+async function forceResolve(roomRef, roomType) {
+    try {
+        const snap = await window.dbUtils.getDoc(roomRef);
+        if (!snap.exists()) return;
+        const freshData = snap.data();
+        // 이미 페이즈가 바뀌었으면 중복 실행 방지
+        if (!['turn_a','turn_b'].includes(freshData.phase)) return;
+        if (freshData.status !== 'fighting') return;
+
+        if (roomType === '2vs2') {
+            await resolveTurn2v2(freshData, roomRef);
+        } else {
+            await resolveTurn(freshData, roomRef);
+        }
+    } catch(e) {
+        console.error("forceResolve 오류:", e);
     }
 }
 
