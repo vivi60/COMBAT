@@ -556,7 +556,7 @@ async function resolveTurn(data, roomRef) {
     const hp_right = origFirst==='left' ? hpSecond : hpFirst;
     const nL = (data.name_left||'').split('|')[0], nR = (data.name_right||'').split('|')[0];
     const motionId = ts;
-    const isGameOver = (hp_left<=0||hp_right<=0)||(round>=5);
+    const isGameOver = (hp_left<=0||hp_right<=0);
     let resultMsg = [];
     logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
 
@@ -565,9 +565,7 @@ async function resolveTurn(data, roomRef) {
         if(hp_left<=0&&hp_right<=0){endText="⚡ 무승부!";}
         else if(hp_left<=0){endText=`🏆 ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
         else if(hp_right<=0){endText=`🏆 ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
-        else if(hp_left>hp_right){endText=`🏆 5라운드 — ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
-        else if(hp_right>hp_left){endText=`🏆 5라운드 — ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
-        else{endText=`⚡ 5라운드 — 무승부!`;}
+        else{endText=`⚡ 무승부!`;}
         resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
         await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",status:"ended",lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
     } else {
@@ -809,7 +807,8 @@ function startRealtimeUpdate(roomId) {
         // 채팅
         if(data.messages) renderChatMessages(data.messages);
         const sub = data.subTurn || 1;
-        document.getElementById('round-display').innerText = `ROUND ${data.currentRound||1} / 5`;
+        const roundLimit = data.roomType === '2vs2' ? ' / 5' : '';
+        document.getElementById('round-display').innerText = `ROUND ${data.currentRound||1}${roundLimit}`;
         updateResultOverlay(data,side);
 
         // ── 타이머 처리 ──
