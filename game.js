@@ -556,7 +556,7 @@ async function resolveTurn(data, roomRef) {
     const hp_right = origFirst==='left' ? hpSecond : hpFirst;
     const nL = (data.name_left||'').split('|')[0], nR = (data.name_right||'').split('|')[0];
     const motionId = ts;
-    const isGameOver = (hp_left<=0||hp_right<=0);
+    const isGameOver = (hp_left<=0||hp_right<=0)||(round>=5);
     let resultMsg = [];
     logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
 
@@ -565,7 +565,9 @@ async function resolveTurn(data, roomRef) {
         if(hp_left<=0&&hp_right<=0){endText="⚡ 무승부!";}
         else if(hp_left<=0){endText=`🏆 ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
         else if(hp_right<=0){endText=`🏆 ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
-        else{endText=`⚡ 무승부!`;}
+        else if(hp_left>hp_right){endText=`🏆 5라운드 — ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
+        else if(hp_right>hp_left){endText=`🏆 5라운드 — ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
+        else{endText=`⚡ 5라운드 — 무승부!`;}
         resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
         await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",status:"ended",lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
     } else {
@@ -1048,12 +1050,12 @@ function updateUI1v1(data,side,phase,status){
         }
     });
     // HP
-    const hpL=data.hp_left??100, hpR=data.hp_right??100;
-    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/100)*100))+"%";
-    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/100)*100))+"%";
+    const hpL=data.hp_left??DEFAULT_MAX_HP, hpR=data.hp_right??DEFAULT_MAX_HP;
+    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/DEFAULT_MAX_HP)*100))+"%";
+    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/DEFAULT_MAX_HP)*100))+"%";
     const hlt=document.getElementById('hp-left-text'),hrt=document.getElementById('hp-right-text');
-    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / 100`;
-    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / 100`;
+    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / ${DEFAULT_MAX_HP}`;
+    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / ${DEFAULT_MAX_HP}`;
     // 사망/도주 시 이미지 회색 처리
     const imgL = document.getElementById('img-left'), imgR = document.getElementById('img-right');
     if(imgL) imgL.style.filter = hpL<=0 ? 'grayscale(100%) brightness(0.5)' : '';
@@ -1075,7 +1077,7 @@ function updateUI2v2(data,side,phase,status){
         const maxHp = 100;
         const pct   = Math.max(0, Math.min(100, (hp / maxHp) * 100));
         if(hpBar) hpBar.style.width = pct + "%";
-        if(hpTxt) hpTxt.innerText  = `${hp} / 100`;
+        if(hpTxt) hpTxt.innerText  = `${hp} / ${DEFAULT_MAX_HP}`;
         const wrapper=iEl?.parentElement?.parentElement;
         if(wrapper) wrapper.style.opacity = hp<=0 ? '0.5' : '1';
         // 사망/도주 시 이미지 회색 처리
