@@ -14,9 +14,15 @@ let _lastPhase = null;       // 페이즈 변경 감지용
 // 유틸
 // ═══════════════════════════════════════════
 function roll(max) { return Math.floor(Math.random() * max) + 1; }
-function rollAttack()  { return roll(15) + 5; }
-function rollDefense() { return roll(15) + 5; }
+// stat: 1~10 (Firestore characters.atkStat / defStat / dodgeStat / fleeStat)
+// 공격/방어 = 1d20 + 1d(stat)
+function rollAttack(stat=5)  { const s=Math.max(1,Math.min(10,stat||5)); return roll(20) + roll(s); }
+function rollDefense(stat=5) { const s=Math.max(1,Math.min(10,stat||5)); return roll(20) + roll(s); }
+function dodgeRate(stat=5)   { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
+function fleeRate(stat=5)    { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
+const DEFAULT_MAX_HP = 120;
 function teamOf(slot)  { return slot ? slot.split('_')[0] : ''; }
+function is2v2Side(s)  { return s && s.includes('_'); }
 function is2v2Side(s)  { return s && s.includes('_'); }
 
 // ═══════════════════════════════════════════
@@ -110,12 +116,22 @@ async function joinRoom(roomId, side) {
         } else {
             myProfile.side = side;
             const charSnap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "characters", myProfile.name));
-            const startingHp = (charSnap.exists() && charSnap.data().maxHp !== undefined) ? charSnap.data().maxHp : 100;
+            const charData  = charSnap.exists() ? charSnap.data() : {};
+            const startingHp = charData.maxHp ?? DEFAULT_MAX_HP;
+            // 스탯 읽기 (없으면 5 기본값)
+            const atkStat   = Math.max(1, Math.min(10, charData.atkStat  ?? 5));
+            const defStat   = Math.max(1, Math.min(10, charData.defStat  ?? 5));
+            const dodgeStat = Math.max(1, Math.min(10, charData.dodgeStat ?? 5));
+            const fleeStat  = Math.max(1, Math.min(10, charData.fleeStat  ?? 5));
             updateData = {
                 playersCount: window.dbUtils.increment(1),
-                [`name_${side}`]: myProfile.charId,
-                [`hp_${side}`]: startingHp,
-                [`start_hp_${side}`]: startingHp,
+                [`name_${side}`]:        myProfile.charId,
+                [`hp_${side}`]:          startingHp,
+                [`start_hp_${side}`]:    startingHp,
+                [`stat_atk_${side}`]:    atkStat,
+                [`stat_def_${side}`]:    defStat,
+                [`stat_dodge_${side}`]:  dodgeStat,
+                [`stat_flee_${side}`]:   fleeStat,
                 messages: window.dbUtils.arrayUnion({ sender:"시스템", text:`${myProfile.name} 님이 입장했습니다.`, timestamp:Date.now() })
             };
         }
@@ -466,14 +482,23 @@ async function resolveTurn(data, roomRef) {
 
     const origFirst  = data.firstSide || data.turnFirst;
     const origSecond = origFirst === 'left' ? 'right' : 'left';
-    const aFirst  = data.action_first;   // 선공(turn_a)의 행동
-    const aSecond = data.action_second;  // 후공(turn_b)의 행동
+    const aFirst  = data.action_first;
+    const aSecond = data.action_second;
     const nFirst  = (data[`name_${origFirst}`]||'').split('|')[0];
     const nSecond = (data[`name_${origSecond}`]||'').split('|')[0];
     const round = data.currentRound || 1;
     const ts = Date.now();
-    let hpFirst  = data[`hp_${origFirst}`]  ?? 100;
-    let hpSecond = data[`hp_${origSecond}`] ?? 100;
+    let hpFirst  = data[`hp_${origFirst}`]  ?? DEFAULT_MAX_HP;
+    let hpSecond = data[`hp_${origSecond}`] ?? DEFAULT_MAX_HP;
+    // 스탯 로드
+    const atkF   = data[`stat_atk_${origFirst}`]   ?? 5;
+    const atkS   = data[`stat_atk_${origSecond}`]  ?? 5;
+    const defF   = data[`stat_def_${origFirst}`]   ?? 5;
+    const defS   = data[`stat_def_${origSecond}`]  ?? 5;
+    const dodgeF = data[`stat_dodge_${origFirst}`] ?? 5;
+    const dodgeS = data[`stat_dodge_${origSecond}`]?? 5;
+    const fleeF  = data[`stat_flee_${origFirst}`]  ?? 5;
+    const fleeS  = data[`stat_flee_${origSecond}`] ?? 5;
     const logs = [], motions = [], icon = {'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
 
     logs.push(`${icon[aFirst]||''} ${nFirst}의 행동: ${aFirst||'없음'}`);
@@ -483,45 +508,45 @@ async function resolveTurn(data, roomRef) {
     const effectiveB = aSecond || '';
 
     if (effectiveA==='공격'&&effectiveB==='공격') {
-        const atk=rollAttack(); hpSecond=Math.max(0,hpSecond-atk);
+        const atk=rollAttack(atkF); hpSecond=Math.max(0,hpSecond-atk);
         motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});
         logs.push(`${nFirst} 공격 ${atk} → ${nSecond} -${atk}HP`);
-        if(hpSecond>0){const atk2=rollAttack();hpFirst=Math.max(0,hpFirst-atk2);motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk2}`,popupType:'damage'});logs.push(`${nSecond} 반격 ${atk2} → ${nFirst} -${atk2}HP`);}
+        if(hpSecond>0){const atk2=rollAttack(atkS);hpFirst=Math.max(0,hpFirst-atk2);motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk2}`,popupType:'damage'});logs.push(`${nSecond} 반격 ${atk2} → ${nFirst} -${atk2}HP`);}
         else logs.push(`${nSecond} 쓰러져 반격 불가!`);
     } else if (effectiveA==='공격'&&effectiveB==='방어') {
-        const atk=rollAttack(),def=rollDefense(),dmg=Math.max(0,atk-def);hpSecond=Math.max(0,hpSecond-dmg);
+        const atk=rollAttack(atkF),def=rollDefense(defS),dmg=Math.max(0,atk-def);hpSecond=Math.max(0,hpSecond-dmg);
         motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
         logs.push(dmg>0?`공격 ${atk} - 방어 ${def} = ${dmg} 데미지`:`완전히 막아냈습니다!`);
     } else if (effectiveA==='방어'&&effectiveB==='공격') {
-        const atk=rollAttack(),def=rollDefense(),dmg=Math.max(0,atk-def);hpFirst=Math.max(0,hpFirst-dmg);
+        const atk=rollAttack(atkS),def=rollDefense(defF),dmg=Math.max(0,atk-def);hpFirst=Math.max(0,hpFirst-dmg);
         motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
         logs.push(dmg>0?`공격 ${atk} - 방어 ${def} = ${dmg} 데미지`:`완전히 막아냈습니다!`);
     } else if (effectiveA==='공격'&&effectiveB==='회피') {
-        const atk=rollAttack(),dodged=Math.random()<0.5;
+        const atk=rollAttack(atkF),dodged=Math.random()<dodgeRate(dodgeS);
         motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
-        if(dodged)logs.push(`${nSecond} 회피 성공!`);else{hpSecond=Math.max(0,hpSecond-atk);logs.push(`회피 실패! -${atk}HP`);}
+        if(dodged)logs.push(`${nSecond} 회피 성공! (${Math.round(dodgeRate(dodgeS)*100)}%)`);else{hpSecond=Math.max(0,hpSecond-atk);logs.push(`회피 실패! -${atk}HP`);}
     } else if (effectiveA==='회피'&&effectiveB==='공격') {
-        const atk=rollAttack(),dodged=Math.random()<0.5;
+        const atk=rollAttack(atkS),dodged=Math.random()<dodgeRate(dodgeF);
         motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
-        if(dodged)logs.push(`${nFirst} 회피 성공!`);else{hpFirst=Math.max(0,hpFirst-atk);logs.push(`회피 실패! -${atk}HP`);}
+        if(dodged)logs.push(`${nFirst} 회피 성공! (${Math.round(dodgeRate(dodgeF)*100)}%)`);else{hpFirst=Math.max(0,hpFirst-atk);logs.push(`회피 실패! -${atk}HP`);}
     } else if (effectiveA==='공격'&&effectiveB==='도주') {
-        const atk=rollAttack(),esc=Math.random()<0.5;
+        const atk=rollAttack(atkF),esc=Math.random()<fleeRate(fleeS);
         motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공!`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
+        if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공! (${Math.round(fleeRate(fleeS)*100)}%)`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
     } else if (effectiveA==='도주'&&effectiveB==='공격') {
-        const atk=rollAttack(),esc=Math.random()<0.5;
+        const atk=rollAttack(atkS),esc=Math.random()<fleeRate(fleeF);
         motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공!`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
+        if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공! (${Math.round(fleeRate(fleeF)*100)}%)`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
     } else if (effectiveA==='도주'&&effectiveB==='도주') {
-        const eA=Math.random()<0.5,eB=Math.random()<0.5;
+        const eA=Math.random()<fleeRate(fleeF),eB=Math.random()<fleeRate(fleeS);
         motions.push({side:origFirst,anim:'flee',popup:eA?'도주!':'실패!',popupType:'flee'},{side:origSecond,anim:'flee',popup:eB?'도주!':'실패!',popupType:'flee'});
         if(eA)hpFirst=0;if(eB)hpSecond=0;logs.push(`${nFirst} 도주 ${eA?'성공':'실패'} / ${nSecond} 도주 ${eB?'성공':'실패'}`);
     } else if (effectiveA==='도주') {
-        const esc=Math.random()<0.5;motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
+        const esc=Math.random()<fleeRate(fleeF);motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
         if(effectiveB==='회피')motions.push({side:origSecond,anim:'dodge'});else if(effectiveB==='방어')motions.push({side:origSecond,anim:'defend'});
         if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공!`);}else logs.push(`${nFirst} 도주 실패! 피해 없음.`);
     } else if (effectiveB==='도주') {
-        const esc=Math.random()<0.5;motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
+        const esc=Math.random()<fleeRate(fleeS);motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
         if(effectiveA==='회피')motions.push({side:origFirst,anim:'dodge'});else if(effectiveA==='방어')motions.push({side:origFirst,anim:'defend'});
         if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공!`);}else logs.push(`${nSecond} 도주 실패! 피해 없음.`);
     } else {
@@ -593,7 +618,10 @@ async function resolveTurn2v2(data, roomRef) {
     const ordered = [`${origFirst}_a`,`${origFirst}_b`,`${origSecond}_a`,`${origSecond}_b`];
 
     let hp = {};
-    slots.forEach(s => { hp[s] = data[`hp_${s}`] ?? 100; });
+    slots.forEach(s => { hp[s] = data[`hp_${s}`] ?? DEFAULT_MAX_HP; });
+
+    // 스탯 헬퍼
+    const getStat = (s, type) => data[`stat_${type}_${s}`] ?? 5;
 
     const logs = [], motions = [];
     const icon = {'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
@@ -604,9 +632,10 @@ async function resolveTurn2v2(data, roomRef) {
         const act = data[`action_${s}`];
         if (act !== '도주') continue;
         if (hp[s] <= 0) continue;
-        const esc = Math.random() < 0.5;
+        const rate = fleeRate(getStat(s,'flee'));
+        const esc = Math.random() < rate;
         motions.push({ side:s, anim:'flee', popup: esc?'도주!':'실패!', popupType:'flee' });
-        if (esc) { hp[s] = 0; logs.push(`🏃 ${name(s)}: 도주 성공 — 전투 이탈`); }
+        if (esc) { hp[s] = 0; logs.push(`🏃 ${name(s)}: 도주 성공 (${Math.round(rate*100)}%) — 전투 이탈`); }
         else logs.push(`🏃 ${name(s)}: 도주 실패`);
     }
 
@@ -637,25 +666,25 @@ async function resolveTurn2v2(data, roomRef) {
         const tgtAction = data[`action_${tgt}`];
         const tgtDefTarget = data[`target_${tgt}`]; // 방어 시 자기자신 지키면 tgt===tgt
 
-        // 공격 합산
+        // 공격 합산 (각 공격자의 atkStat 적용)
         let totalAtk = 0;
         const atkRolls = [];
         atkGroup.forEach(a => {
-            const r = rollAttack();
+            const r = rollAttack(getStat(a,'atk'));
             totalAtk += r;
             atkRolls.push(`${name(a)}:${r}`);
             motions.push({ side:a, anim:'attack' });
         });
 
-        // 이 타겟을 방어하는 방어자들 (target이 tgt인 defender)
+        // 이 타겟을 방어하는 방어자들
         const defGroup = defenders.filter(d => data[`target_${d}`] === tgt && hp[d] > 0);
 
         if (tgtAction === '회피') {
-            // 회피: 타겟이 회피 선택 → 50% 성공
-            const dodged = Math.random() < 0.5;
+            const rate = dodgeRate(getStat(tgt,'dodge'));
+            const dodged = Math.random() < rate;
             motions.push({ side:tgt, anim:'dodge', popup: dodged?'회피!':'실패!', popupType: dodged?'miss':'damage' });
             if (dodged) {
-                logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 성공! (${atkRolls.join('+')})`);
+                logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 성공! (${Math.round(rate*100)}%) (${atkRolls.join('+')})`);
             } else {
                 hp[tgt] = Math.max(0, hp[tgt] - totalAtk);
                 motions.push({ side:tgt, anim:'hit', popup:`-${totalAtk}`, popupType:'damage' });
@@ -668,7 +697,7 @@ async function resolveTurn2v2(data, roomRef) {
             let totalDef = 0;
             const defRolls = [];
             defGroup.forEach(d => {
-                const r = rollDefense();
+                const r = rollDefense(getStat(d,'def'));
                 totalDef += r;
                 defRolls.push(`${name(d)}:${r}`);
                 motions.push({ side:d, anim:'defend' });
@@ -1347,32 +1376,48 @@ async function startGame(){
         document.getElementById(`first-badge-${s}`)?.classList.add('hidden');
     });
 
-    // 최신 maxHp를 characters 컬렉션에서 재조회
-    async function getFreshHp(nameField) {
+    // 최신 HP와 스탯을 characters 컬렉션에서 재조회
+    async function getFreshCharData(nameField) {
         const raw = d[nameField];
-        if (!raw) return 100;
+        if (!raw) return { hp: DEFAULT_MAX_HP, atkStat:5, defStat:5, dodgeStat:5, fleeStat:5 };
         const charName = raw.split('|')[0];
         try {
             const cs = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "characters", charName));
-            return (cs.exists() && cs.data().maxHp !== undefined) ? cs.data().maxHp : 100;
-        } catch { return 100; }
+            const cd = cs.exists() ? cs.data() : {};
+            return {
+                hp:       cd.maxHp    ?? DEFAULT_MAX_HP,
+                atkStat:  Math.max(1, Math.min(10, cd.atkStat   ?? 5)),
+                defStat:  Math.max(1, Math.min(10, cd.defStat   ?? 5)),
+                dodgeStat:Math.max(1, Math.min(10, cd.dodgeStat ?? 5)),
+                fleeStat: Math.max(1, Math.min(10, cd.fleeStat  ?? 5)),
+            };
+        } catch { return { hp: DEFAULT_MAX_HP, atkStat:5, defStat:5, dodgeStat:5, fleeStat:5 }; }
     }
 
     const upd={status:"fighting",ready_left:false,ready_right:false,dice_left:0,dice_right:0,isDetermined:false,firstSide:"",turnFirst:"",phase:"dice",currentRound:1,subTurn:1,origRoundFirst:"",lastMotions:[],lastMotionId:0,messages:window.dbUtils.arrayUnion({sender:"시스템",text:"⚔️ 전투 시작! 다이스를 굴려 선공을 결정하세요.",timestamp:Date.now()})};
 
     if(d.roomType==='1vs1'){
-        const hL = await getFreshHp('name_left');
-        const hR = await getFreshHp('name_right');
-        upd.hp_left=hL; upd.hp_right=hR;
-        upd.start_hp_left=hL; upd.start_hp_right=hR;
+        const cL = await getFreshCharData('name_left');
+        const cR = await getFreshCharData('name_right');
+        upd.hp_left=cL.hp; upd.hp_right=cR.hp;
+        upd.start_hp_left=cL.hp; upd.start_hp_right=cR.hp;
+        upd.stat_atk_left=cL.atkStat;   upd.stat_def_left=cL.defStat;
+        upd.stat_dodge_left=cL.dodgeStat; upd.stat_flee_left=cL.fleeStat;
+        upd.stat_atk_right=cR.atkStat;  upd.stat_def_right=cR.defStat;
+        upd.stat_dodge_right=cR.dodgeStat; upd.stat_flee_right=cR.fleeStat;
         upd.action_first=""; upd.action_second="";
     } else {
-        const hLA = await getFreshHp('name_left_a');
-        const hLB = await getFreshHp('name_left_b');
-        const hRA = await getFreshHp('name_right_a');
-        const hRB = await getFreshHp('name_right_b');
-        upd.hp_left_a=hLA; upd.hp_left_b=hLB; upd.hp_right_a=hRA; upd.hp_right_b=hRB;
-        upd.start_hp_left_a=hLA; upd.start_hp_left_b=hLB; upd.start_hp_right_a=hRA; upd.start_hp_right_b=hRB;
+        const cLA = await getFreshCharData('name_left_a');
+        const cLB = await getFreshCharData('name_left_b');
+        const cRA = await getFreshCharData('name_right_a');
+        const cRB = await getFreshCharData('name_right_b');
+        upd.hp_left_a=cLA.hp; upd.hp_left_b=cLB.hp; upd.hp_right_a=cRA.hp; upd.hp_right_b=cRB.hp;
+        upd.start_hp_left_a=cLA.hp; upd.start_hp_left_b=cLB.hp; upd.start_hp_right_a=cRA.hp; upd.start_hp_right_b=cRB.hp;
+        ['left_a','left_b','right_a','right_b'].forEach((s, i) => {
+            const c = [cLA,cLB,cRA,cRB][i];
+            upd[`stat_atk_${s}`]=c.atkStat; upd[`stat_def_${s}`]=c.defStat;
+            upd[`stat_dodge_${s}`]=c.dodgeStat; upd[`stat_flee_${s}`]=c.fleeStat;
+        });
         upd.action_left_a="";upd.action_left_b="";upd.action_right_a="";upd.action_right_b="";
         upd.target_left_a="";upd.target_left_b="";upd.target_right_a="";upd.target_right_b="";
         upd.left_done=false;upd.right_done=false;
