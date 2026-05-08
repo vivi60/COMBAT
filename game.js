@@ -15,9 +15,8 @@ let _lastPhase = null;       // 페이즈 변경 감지용
 // ═══════════════════════════════════════════
 function roll(max) { return Math.floor(Math.random() * max) + 1; }
 // stat: 1~10 (Firestore characters.atkStat / defStat / dodgeStat / fleeStat)
-// 공격/방어 = 1d20 + 1d(stat)
-function rollAttack(stat=5)  { const s=Math.max(1,Math.min(10,stat||5)); return roll(20) + roll(s); }
-function rollDefense(stat=5) { const s=Math.max(1,Math.min(10,stat||5)); return roll(20) + roll(s); }
+function rollAttack(stat=5)  { return roll(20) + Math.max(1, Math.min(10, stat||5)); }
+function rollDefense(stat=5) { return roll(20) + Math.max(1, Math.min(10, stat||5)); }
 function dodgeRate(stat=5)   { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
 function fleeRate(stat=5)    { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
 const DEFAULT_MAX_HP = 120;
@@ -117,12 +116,12 @@ async function joinRoom(roomId, side) {
             myProfile.side = side;
             const charSnap = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "characters", myProfile.name));
             const charData  = charSnap.exists() ? charSnap.data() : {};
-            const startingHp = charData.maxHp ?? DEFAULT_MAX_HP;
-            // 스탯 읽기 (없으면 5 기본값)
-            const atkStat   = Math.max(1, Math.min(10, charData.atkStat  ?? 5));
-            const defStat   = Math.max(1, Math.min(10, charData.defStat  ?? 5));
-            const dodgeStat = Math.max(1, Math.min(10, charData.dodgeStat ?? 5));
-            const fleeStat  = Math.max(1, Math.min(10, charData.fleeStat  ?? 5));
+            const startingHp = Number(charData.maxHp ?? DEFAULT_MAX_HP) || DEFAULT_MAX_HP;
+            // 스탯 읽기 — Number()로 문자열도 안전하게 변환 (없으면 5 기본값)
+            const atkStat   = Math.max(1, Math.min(10, Number(charData.atkStat)   || 5));
+            const defStat   = Math.max(1, Math.min(10, Number(charData.defStat)   || 5));
+            const dodgeStat = Math.max(1, Math.min(10, Number(charData.dodgeStat) || 5));
+            const fleeStat  = Math.max(1, Math.min(10, Number(charData.fleeStat)  || 5));
             updateData = {
                 playersCount: window.dbUtils.increment(1),
                 [`name_${side}`]:        myProfile.charId,
@@ -1385,11 +1384,11 @@ async function startGame(){
             const cs = await window.dbUtils.getDoc(window.dbUtils.doc(window.db, "characters", charName));
             const cd = cs.exists() ? cs.data() : {};
             return {
-                hp:       cd.maxHp    ?? DEFAULT_MAX_HP,
-                atkStat:  Math.max(1, Math.min(10, cd.atkStat   ?? 5)),
-                defStat:  Math.max(1, Math.min(10, cd.defStat   ?? 5)),
-                dodgeStat:Math.max(1, Math.min(10, cd.dodgeStat ?? 5)),
-                fleeStat: Math.max(1, Math.min(10, cd.fleeStat  ?? 5)),
+                hp:       Number(cd.maxHp)    || DEFAULT_MAX_HP,
+                atkStat:  Math.max(1, Math.min(10, Number(cd.atkStat)   || 5)),
+                defStat:  Math.max(1, Math.min(10, Number(cd.defStat)   || 5)),
+                dodgeStat:Math.max(1, Math.min(10, Number(cd.dodgeStat) || 5)),
+                fleeStat: Math.max(1, Math.min(10, Number(cd.fleeStat)  || 5)),
             };
         } catch { return { hp: DEFAULT_MAX_HP, atkStat:5, defStat:5, dodgeStat:5, fleeStat:5 }; }
     }
