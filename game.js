@@ -427,6 +427,9 @@ async function commitAction2v2(slot, action, target) {
             if (d[`action_${slot}`]) throw new Error("이미_선택");
             if (myTeam !== d.turnFirst) throw new Error("상대팀_차례");
 
+            // 이미 도주 성공한 슬롯은 행동 불가
+            if (!!d[`fled_${slot}`]) throw new Error("이미_도주");
+
             const partnerSlot = slot.endsWith('_a') ? slot.replace('_a','_b') : slot.replace('_b','_a');
             const partnerHp   = d[`hp_${partnerSlot}`] ?? 100;
             // 파트너가 행동했거나 사망(HP 0)이거나 도주 성공이면 완료로 간주
@@ -443,19 +446,30 @@ async function commitAction2v2(slot, action, target) {
                 });
 
                 if (d.phase === 'turn_a') {
-                    // turn_a: 선공팀 완료 → 후공팀 차례로 넘김 (resolve 아님)
+                    // turn_a: 선공팀 완료 → 후공팀 차례로 넘김
                     const secondTeam = myTeam==='left'?'right':'left';
-                    update.phase = 'turn_b';
-                    update.turnFirst = secondTeam;
-                    update.turnDeadline = Date.now() + 300000;
-                    update.messages = window.dbUtils.arrayUnion({
-                        sender:"시스템",
-                        text:`${myTeam==='left'?'왼팀':'오른팀'} 행동 완료! ↩️ ${secondTeam==='left'?'왼팀':'오른팀'} 차례`,
-                        timestamp:Date.now()
-                    });
+                    // 후공팀 전원이 이탈(hp=0 또는 도주 성공)이면 바로 결산
+                    const secSlots = [`${secondTeam}_a`, `${secondTeam}_b`];
+                    const secondTeamAllOut = secSlots.every(ss =>
+                        (d[`hp_${ss}`] ?? 100) <= 0 || !!d[`fled_${ss}`]
+                    );
+                    if (secondTeamAllOut) {
+                        shouldResolve = true;
+                        resolveData = { ...d, [`action_${slot}`]:action, [`target_${slot}`]:target };
+                    } else {
+                        update.phase = 'turn_b';
+                        update.turnFirst = secondTeam;
+                        update.turnDeadline = Date.now() + 300000;
+                        update.messages = window.dbUtils.arrayUnion({
+                            sender:"시스템",
+                            text:`${myTeam==='left'?'왼팀':'오른팀'} 행동 완료! ↩️ ${secondTeam==='left'?'왼팀':'오른팀'} 차례`,
+                            timestamp:Date.now()
+                        });
+                    }
                 } else {
                     // turn_b: 후공팀 완료 → 결산
                     shouldResolve = true;
+                    // d에 fled 필드가 이미 저장돼 있으므로 그대로 전달
                     resolveData = { ...d, [`action_${slot}`]:action, [`target_${slot}`]:target };
                 }
             }
@@ -463,6 +477,7 @@ async function commitAction2v2(slot, action, target) {
         });
     } catch(e) {
         if (e.message==="이미_선택")   { alert("이미 행동을 선택했습니다!"); return; }
+        if (e.message==="이미_도주")   { return; } // 도주 성공자는 조용히 무시
         if (e.message==="상대팀_차례") { alert("아직 내 팀 차례가 아닙니다!"); return; }
         console.error("commitAction2v2 오류:", e); return;
     }
