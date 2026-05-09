@@ -530,11 +530,18 @@ async function resolveTurn(data, roomRef) {
     const effectiveB = aSecond || '';
 
     if (effectiveA==='공격'&&effectiveB==='공격') {
-        const atk=rollAttack(atkF); hpSecond=Math.max(0,hpSecond-atk);
-        motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});
-        logs.push(`${nFirst} 공격 ${atk} → ${nSecond} -${atk}HP`);
-        if(hpSecond>0){const atk2=rollAttack(atkS);hpFirst=Math.max(0,hpFirst-atk2);motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk2}`,popupType:'damage'});logs.push(`${nSecond} 반격 ${atk2} → ${nFirst} -${atk2}HP`);}
-        else logs.push(`${nSecond} 쓰러져 반격 불가!`);
+        // 동시 공격 — 양쪽 모두 독립적으로 데미지 계산 후 동시 적용
+        const atkA=rollAttack(atkF), atkB=rollAttack(atkS);
+        hpSecond=Math.max(0,hpSecond-atkA);
+        hpFirst =Math.max(0,hpFirst -atkB);
+        motions.push(
+            {side:origFirst, anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atkA}`,popupType:'damage'},
+            {side:origSecond,anim:'attack'},{side:origFirst, anim:'hit',popup:`-${atkB}`,popupType:'damage'}
+        );
+        logs.push(`⚔️ 동시 공격! ${nFirst} → -${atkA}HP / ${nSecond} → -${atkB}HP`);
+        if(hpFirst<=0&&hpSecond<=0) logs.push(`💀 동귀어진! 양쪽 모두 전투 불능!`);
+        else if(hpSecond<=0) logs.push(`💀 ${nSecond} 전투 불능!`);
+        else if(hpFirst<=0) logs.push(`💀 ${nFirst} 전투 불능!`);
     } else if (effectiveA==='공격'&&effectiveB==='방어') {
         const atk=rollAttack(atkF),def=rollDefense(defS),dmg=Math.max(0,atk-def);hpSecond=Math.max(0,hpSecond-dmg);
         motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'defend',popup:dmg>0?`-${dmg}`:'막음!',popupType:dmg>0?'damage':'defend'});
@@ -1089,11 +1096,12 @@ function updateUI1v1(data,side,phase,status){
     });
     // HP
     const hpL=data.hp_left??DEFAULT_MAX_HP, hpR=data.hp_right??DEFAULT_MAX_HP;
-    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/DEFAULT_MAX_HP)*100))+"%";
-    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/DEFAULT_MAX_HP)*100))+"%";
+    const maxL=data.start_hp_left||DEFAULT_MAX_HP, maxR=data.start_hp_right||DEFAULT_MAX_HP;
+    document.getElementById('hp-left').style.width  = Math.max(0,Math.min(100,(hpL/maxL)*100))+"%";
+    document.getElementById('hp-right').style.width = Math.max(0,Math.min(100,(hpR/maxR)*100))+"%";
     const hlt=document.getElementById('hp-left-text'),hrt=document.getElementById('hp-right-text');
-    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / ${DEFAULT_MAX_HP}`;
-    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / ${DEFAULT_MAX_HP}`;
+    if(hlt)hlt.innerText=`${Math.max(0,hpL)} / ${maxL}`;
+    if(hrt)hrt.innerText=`${Math.max(0,hpR)} / ${maxR}`;
     // 사망/도주 시 이미지 회색 처리
     const imgL = document.getElementById('img-left'), imgR = document.getElementById('img-right');
     if(imgL) imgL.style.filter = hpL<=0 ? 'grayscale(100%) brightness(0.5)' : '';
@@ -1111,13 +1119,13 @@ function updateUI2v2(data,side,phase,status){
         const raw=data[`name_${s}`];
         if(raw&&raw.includes('|')){const[fn,num]=raw.split('|');if(nEl)nEl.innerText=fn;if(iEl)iEl.innerHTML=`<img src="image/${fn.split(' ')[0]}${num}.png" class="w-full h-full object-cover">`;}
         else{if(nEl)nEl.innerText=raw||"대기 중...";if(!raw&&iEl)iEl.innerHTML='<span class="text-gray-500 text-xs">No Image</span>';}
-        const hp    = Math.max(0, data[`hp_${s}`]??100);
+        const hp    = Math.max(0, data[`hp_${s}`]??DEFAULT_MAX_HP);
         const hasFled2 = !!data[`fled_${s}`];
         const isOut = hp <= 0 || hasFled2;
-        const maxHp = 100;
+        const maxHp = data[`start_hp_${s}`] || DEFAULT_MAX_HP;
         const pct   = Math.max(0, Math.min(100, (hp / maxHp) * 100));
         if(hpBar) hpBar.style.width = pct + "%";
-        if(hpTxt) hpTxt.innerText  = hasFled2 ? `${hp} / ${DEFAULT_MAX_HP} (도주)` : `${hp} / ${DEFAULT_MAX_HP}`;
+        if(hpTxt) hpTxt.innerText  = hasFled2 ? `${hp} / ${maxHp} (도주)` : `${hp} / ${maxHp}`;
         const wrapper=iEl?.parentElement?.parentElement;
         if(wrapper) wrapper.style.opacity = isOut ? '0.5' : '1';
         // 사망/도주 시 이미지 회색 처리
