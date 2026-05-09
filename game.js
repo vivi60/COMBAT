@@ -553,19 +553,19 @@ async function resolveTurn(data, roomRef) {
     } else if (effectiveA==='공격'&&effectiveB==='회피') {
         const atk=rollAttack(atkF),dodged=Math.random()<dodgeRate(dodgeS);
         motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
-        if(dodged)logs.push(`${nSecond} 회피 성공! (${Math.round(dodgeRate(dodgeS)*100)}%)`);else{hpSecond=Math.max(0,hpSecond-atk);logs.push(`회피 실패! -${atk}HP`);}
+        if(dodged)logs.push(`${nSecond} 회피 성공!`);else{hpSecond=Math.max(0,hpSecond-atk);logs.push(`회피 실패! -${atk}HP`);}
     } else if (effectiveA==='회피'&&effectiveB==='공격') {
         const atk=rollAttack(atkS),dodged=Math.random()<dodgeRate(dodgeF);
         motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'dodge',popup:dodged?'회피!':'실패!',popupType:dodged?'miss':'damage'});
-        if(dodged)logs.push(`${nFirst} 회피 성공! (${Math.round(dodgeRate(dodgeF)*100)}%)`);else{hpFirst=Math.max(0,hpFirst-atk);logs.push(`회피 실패! -${atk}HP`);}
+        if(dodged)logs.push(`${nFirst} 회피 성공!`);else{hpFirst=Math.max(0,hpFirst-atk);logs.push(`회피 실패! -${atk}HP`);}
     } else if (effectiveA==='공격'&&effectiveB==='도주') {
         const atk=rollAttack(atkF),esc=Math.random()<fleeRate(fleeS);
         motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(esc){fledSecond=true;logs.push(`${nSecond} 도주 성공! (${Math.round(fleeRate(fleeS)*100)}%)`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
+        if(esc){fledSecond=true;logs.push(`${nSecond} 도주 성공!`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
     } else if (effectiveA==='도주'&&effectiveB==='공격') {
         const atk=rollAttack(atkS),esc=Math.random()<fleeRate(fleeF);
         motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(esc){fledFirst=true;logs.push(`${nFirst} 도주 성공! (${Math.round(fleeRate(fleeF)*100)}%)`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
+        if(esc){fledFirst=true;logs.push(`${nFirst} 도주 성공!`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
     } else if (effectiveA==='도주'&&effectiveB==='도주') {
         const eA=Math.random()<fleeRate(fleeF),eB=Math.random()<fleeRate(fleeS);
         motions.push({side:origFirst,anim:'flee',popup:eA?'도주!':'실패!',popupType:'flee'},{side:origSecond,anim:'flee',popup:eB?'도주!':'실패!',popupType:'flee'});
@@ -673,7 +673,7 @@ async function resolveTurn2v2(data, roomRef) {
         const rate = fleeRate(getStat(s,'flee'));
         const esc = Math.random() < rate;
         motions.push({ side:s, anim:'flee', popup: esc?'도주!':'실패!', popupType:'flee' });
-        if (esc) { fled[s] = true; logs.push(`🏃 ${name(s)}: 도주 성공 (${Math.round(rate*100)}%) — 전투 이탈`); }
+        if (esc) { fled[s] = true; logs.push(`🏃 ${name(s)}: 도주 성공 — 전투 이탈`); }
         else logs.push(`🏃 ${name(s)}: 도주 실패`);
     }
 
@@ -722,7 +722,7 @@ async function resolveTurn2v2(data, roomRef) {
             const dodged = Math.random() < rate;
             motions.push({ side:tgt, anim:'dodge', popup: dodged?'회피!':'실패!', popupType: dodged?'miss':'damage' });
             if (dodged) {
-                logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 성공! (${Math.round(rate*100)}%) (${atkRolls.join('+')})`);
+                logs.push(`${icon['공격']} [공격합계 ${totalAtk}] → ${name(tgt)}: 회피 성공! (${atkRolls.join('+')})`);
             } else {
                 hp[tgt] = Math.max(0, hp[tgt] - totalAtk);
                 motions.push({ side:tgt, anim:'hit', popup:`-${totalAtk}`, popupType:'damage' });
