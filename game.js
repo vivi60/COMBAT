@@ -15,9 +15,9 @@ let _lastPhase = null;       // 페이즈 변경 감지용
 // ═══════════════════════════════════════════
 function roll(max) { return Math.floor(Math.random() * max) + 1; }
 // stat: 1~10 (Firestore characters.atkStat / defStat / dodgeStat / fleeStat)
-// 공격/방어 = stat + 1d(21-stat) + 1d(stat)
-function rollAttack(stat=5)  { const s=Math.max(1,Math.min(10,stat||5)); return s + roll(21-s) + roll(s); }
-function rollDefense(stat=5) { const s=Math.max(1,Math.min(10,stat||5)); return s + roll(21-s) + roll(s); }
+// 공격/방어 = stat + 1d(20-stat) + stat  → 최솟값: 2*stat+1, 최댓값: 20+stat (stat=3이면 최대 23)
+function rollAttack(stat=5)  { const s=Math.max(1,Math.min(10,stat||5)); return s + roll(20-s) + s; }
+function rollDefense(stat=5) { const s=Math.max(1,Math.min(10,stat||5)); return s + roll(20-s) + s; }
 function dodgeRate(stat=5)   { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
 function fleeRate(stat=5)    { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
 const DEFAULT_MAX_HP = 120;
@@ -759,8 +759,10 @@ async function resolveTurn2v2(data, roomRef) {
         else logs.push(`⏱️ 행동을 선택하지 않아 턴이 넘어갑니다.`);
     }
 
-    const lA = (hp['left_a'] > 0 && !fled['left_a']) || (hp['left_b'] > 0 && !fled['left_b']);
-    const rA = (hp['right_a'] > 0 && !fled['right_a']) || (hp['right_b'] > 0 && !fled['right_b']);
+    // fled[s]: 이번 턴 도주 / data.fled_s: 이전 라운드 도주 — 둘 다 체크
+    const hasFled = s => !!(fled[s] || data[`fled_${s}`]);
+    const lA = (hp['left_a']  > 0 && !hasFled('left_a'))  || (hp['left_b']  > 0 && !hasFled('left_b'));
+    const rA = (hp['right_a'] > 0 && !hasFled('right_a')) || (hp['right_b'] > 0 && !hasFled('right_b'));
     const isGameOver = (!lA || !rA) || (round >= 5);
     const motionId = ts;
 
