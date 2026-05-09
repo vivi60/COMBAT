@@ -338,8 +338,9 @@ async function selectAction2v2(slot, action) {
             if (!tEl) return;
             const btn = tEl.parentElement;
             const eHp = _currentRoomData ? (_currentRoomData[`hp_${eslot}`]??100) : 100;
-            const dead = eHp <= 0;
-            tEl.innerText = (nameEl ? nameEl.innerText : eslot) + (dead ? ' (사망)' : '');
+            const eFled = _currentRoomData ? !!_currentRoomData[`fled_${eslot}`] : false;
+            const dead = eHp <= 0 || eFled;
+            tEl.innerText = (nameEl ? nameEl.innerText : eslot) + (eHp<=0 ? ' (사망)' : eFled ? ' (도주)' : '');
             btn.disabled = dead;
             btn.style.opacity = dead ? '0.35' : '1';
             btn.style.background = dead ? '#4b5563' : '#b45309';
@@ -428,8 +429,8 @@ async function commitAction2v2(slot, action, target) {
 
             const partnerSlot = slot.endsWith('_a') ? slot.replace('_a','_b') : slot.replace('_b','_a');
             const partnerHp   = d[`hp_${partnerSlot}`] ?? 100;
-            // 파트너가 행동했거나 사망(HP 0)이면 완료로 간주
-            const partnerDone = !!d[`action_${partnerSlot}`] || partnerHp <= 0;
+            // 파트너가 행동했거나 사망(HP 0)이거나 도주 성공이면 완료로 간주
+            const partnerDone = !!d[`action_${partnerSlot}`] || partnerHp <= 0 || !!d[`fled_${partnerSlot}`];
             const update = { [`action_${slot}`]:action, [`target_${slot}`]:target };
 
             if (partnerDone) {
@@ -505,6 +506,7 @@ async function resolveTurn(data, roomRef) {
     const fleeF  = data[`stat_flee_${origFirst}`]  ?? 5;
     const fleeS  = data[`stat_flee_${origSecond}`] ?? 5;
     const logs = [], motions = [], icon = {'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
+    let fledFirst = false, fledSecond = false;
 
     logs.push(`${icon[aFirst]||''} ${nFirst}의 행동: ${aFirst||'없음'}`);
     logs.push(`${icon[aSecond]||''} ${nSecond}의 행동: ${aSecond||'없음'}`);
@@ -537,45 +539,53 @@ async function resolveTurn(data, roomRef) {
     } else if (effectiveA==='공격'&&effectiveB==='도주') {
         const atk=rollAttack(atkF),esc=Math.random()<fleeRate(fleeS);
         motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공! (${Math.round(fleeRate(fleeS)*100)}%)`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
+        if(esc){fledSecond=true;logs.push(`${nSecond} 도주 성공! (${Math.round(fleeRate(fleeS)*100)}%)`);}else{motions.push({side:origFirst,anim:'attack'},{side:origSecond,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpSecond=Math.max(0,hpSecond-atk);logs.push(`도주 실패! -${atk}HP`);}
     } else if (effectiveA==='도주'&&effectiveB==='공격') {
         const atk=rollAttack(atkS),esc=Math.random()<fleeRate(fleeF);
         motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
-        if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공! (${Math.round(fleeRate(fleeF)*100)}%)`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
+        if(esc){fledFirst=true;logs.push(`${nFirst} 도주 성공! (${Math.round(fleeRate(fleeF)*100)}%)`);}else{motions.push({side:origSecond,anim:'attack'},{side:origFirst,anim:'hit',popup:`-${atk}`,popupType:'damage'});hpFirst=Math.max(0,hpFirst-atk);logs.push(`도주 실패! -${atk}HP`);}
     } else if (effectiveA==='도주'&&effectiveB==='도주') {
         const eA=Math.random()<fleeRate(fleeF),eB=Math.random()<fleeRate(fleeS);
         motions.push({side:origFirst,anim:'flee',popup:eA?'도주!':'실패!',popupType:'flee'},{side:origSecond,anim:'flee',popup:eB?'도주!':'실패!',popupType:'flee'});
-        if(eA)hpFirst=0;if(eB)hpSecond=0;logs.push(`${nFirst} 도주 ${eA?'성공':'실패'} / ${nSecond} 도주 ${eB?'성공':'실패'}`);
+        if(eA)fledFirst=true;if(eB)fledSecond=true;logs.push(`${nFirst} 도주 ${eA?'성공':'실패'} / ${nSecond} 도주 ${eB?'성공':'실패'}`);
     } else if (effectiveA==='도주') {
         const esc=Math.random()<fleeRate(fleeF);motions.push({side:origFirst,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
         if(effectiveB==='회피')motions.push({side:origSecond,anim:'dodge'});else if(effectiveB==='방어')motions.push({side:origSecond,anim:'defend'});
-        if(esc){hpFirst=0;logs.push(`${nFirst} 도주 성공!`);}else logs.push(`${nFirst} 도주 실패! 피해 없음.`);
+        if(esc){fledFirst=true;logs.push(`${nFirst} 도주 성공!`);}else logs.push(`${nFirst} 도주 실패! 피해 없음.`);
     } else if (effectiveB==='도주') {
         const esc=Math.random()<fleeRate(fleeS);motions.push({side:origSecond,anim:'flee',popup:esc?'도주!':'실패!',popupType:'flee'});
         if(effectiveA==='회피')motions.push({side:origFirst,anim:'dodge'});else if(effectiveA==='방어')motions.push({side:origFirst,anim:'defend'});
-        if(esc){hpSecond=0;logs.push(`${nSecond} 도주 성공!`);}else logs.push(`${nSecond} 도주 실패! 피해 없음.`);
+        if(esc){fledSecond=true;logs.push(`${nSecond} 도주 성공!`);}else logs.push(`${nSecond} 도주 실패! 피해 없음.`);
     } else {
         logs.push(`서로 맞붙지 않아 피해가 없습니다.`);
     }
 
     const hp_left  = origFirst==='left' ? hpFirst : hpSecond;
     const hp_right = origFirst==='left' ? hpSecond : hpFirst;
+    const fled_left  = origFirst==='left' ? fledFirst : fledSecond;
+    const fled_right = origFirst==='left' ? fledSecond : fledFirst;
     const nL = (data.name_left||'').split('|')[0], nR = (data.name_right||'').split('|')[0];
     const motionId = ts;
-    const isGameOver = (hp_left<=0||hp_right<=0)||(round>=5);
+    // 도주 성공한 쪽도 전투 이탈로 간주
+    const leftOut  = hp_left<=0  || fled_left;
+    const rightOut = hp_right<=0 || fled_right;
+    const isGameOver = (leftOut||rightOut)||(round>=5);
     let resultMsg = [];
     logs.forEach((l,i)=>resultMsg.push({sender:"시스템",text:l,timestamp:ts+i}));
 
     if (isGameOver) {
         let endText="";
-        if(hp_left<=0&&hp_right<=0){endText="⚡ 무승부!";}
-        else if(hp_left<=0){endText=`🏆 ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
-        else if(hp_right<=0){endText=`🏆 ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
+        if(leftOut&&rightOut){endText="⚡ 무승부!";}
+        else if(leftOut){endText=`🏆 ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
+        else if(rightOut){endText=`🏆 ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
         else if(hp_left>hp_right){endText=`🏆 5라운드 — ${nL} 승리!`;motions.push({side:'left',popup:'승리!',popupType:'win'});}
         else if(hp_right>hp_left){endText=`🏆 5라운드 — ${nR} 승리!`;motions.push({side:'right',popup:'승리!',popupType:'win'});}
         else{endText=`⚡ 5라운드 — 무승부!`;}
         resultMsg.push({sender:"시스템",text:endText,timestamp:ts+logs.length+1});
-        await window.dbUtils.updateDoc(roomRef,{hp_left,hp_right,action_first:"",action_second:"",status:"ended",lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)});
+        const updEnd = {hp_left,hp_right,action_first:"",action_second:"",status:"ended",lastMotions:motions,lastMotionId:motionId,messages:window.dbUtils.arrayUnion(...resultMsg)};
+        if(fled_left)  updEnd.fled_left  = true;
+        if(fled_right) updEnd.fled_right = true;
+        await window.dbUtils.updateDoc(roomRef, updEnd);
     } else {
         const subTurn = data.subTurn || 1;
         if (subTurn === 1) {
@@ -631,6 +641,7 @@ async function resolveTurn2v2(data, roomRef) {
     const logs = [], motions = [];
     const icon = {'공격':'⚔️','방어':'🛡️','회피':'💨','도주':'🏃'};
     const name = s => (data[`name_${s}`]||'').split('|')[0] || s;
+    const fled = {}; // 도주 성공 플래그
 
     // ─ 1단계: 도주 처리 (선공 순서대로)
     for (const s of ordered) {
@@ -640,15 +651,15 @@ async function resolveTurn2v2(data, roomRef) {
         const rate = fleeRate(getStat(s,'flee'));
         const esc = Math.random() < rate;
         motions.push({ side:s, anim:'flee', popup: esc?'도주!':'실패!', popupType:'flee' });
-        if (esc) { hp[s] = 0; logs.push(`🏃 ${name(s)}: 도주 성공 (${Math.round(rate*100)}%) — 전투 이탈`); }
+        if (esc) { fled[s] = true; logs.push(`🏃 ${name(s)}: 도주 성공 (${Math.round(rate*100)}%) — 전투 이탈`); }
         else logs.push(`🏃 ${name(s)}: 도주 실패`);
     }
 
     // ─ 2단계: 각 타겟별로 공격 합산 & 방어 합산 계산
-    // 공격자 목록: action=공격, target=타겟슬롯, 살아있음
-    const attackers = ordered.filter(s => data[`action_${s}`]==='공격' && data[`target_${s}`] && hp[s]>0);
+    // 공격자 목록: action=공격, target=타겟슬롯, 살아있음, 도주 안 함
+    const attackers = ordered.filter(s => data[`action_${s}`]==='공격' && data[`target_${s}`] && hp[s]>0 && !fled[s]);
     // 방어자 목록: action=방어, target=지키려는 슬롯 (자신 또는 팀원)
-    const defenders = slots.filter(s => data[`action_${s}`]==='방어' && hp[s]>0);
+    const defenders = slots.filter(s => data[`action_${s}`]==='방어' && hp[s]>0 && !fled[s]);
 
     // 타겟별로 그룹화
     const attacksByTarget = {};
@@ -662,8 +673,8 @@ async function resolveTurn2v2(data, roomRef) {
     for (const tgt of slots) {
         const atkGroup = attacksByTarget[tgt] || [];
         if (atkGroup.length === 0) continue;
-        if (hp[tgt] <= 0) {
-            atkGroup.forEach(a => logs.push(`${icon['공격']} ${name(a)} → ${name(tgt)}: 이미 쓰러짐`));
+        if (hp[tgt] <= 0 || fled[tgt]) {
+            atkGroup.forEach(a => logs.push(`${icon['공격']} ${name(a)} → ${name(tgt)}: ${hp[tgt]<=0?'이미 쓰러짐':'도주로 이탈'}`));
             continue;
         }
 
@@ -733,8 +744,8 @@ async function resolveTurn2v2(data, roomRef) {
         else logs.push(`⏱️ 행동을 선택하지 않아 턴이 넘어갑니다.`);
     }
 
-    const lA = hp['left_a'] > 0 || hp['left_b'] > 0;
-    const rA = hp['right_a'] > 0 || hp['right_b'] > 0;
+    const lA = (hp['left_a'] > 0 && !fled['left_a']) || (hp['left_b'] > 0 && !fled['left_b']);
+    const rA = (hp['right_a'] > 0 && !fled['right_a']) || (hp['right_b'] > 0 && !fled['right_b']);
     const isGameOver = (!lA || !rA) || (round >= 5);
     const motionId = ts;
 
@@ -749,6 +760,10 @@ async function resolveTurn2v2(data, roomRef) {
         left_done:false, right_done:false,
         lastMotions:motions, lastMotionId:motionId
     };
+    // 도주 플래그 누적 (이전 라운드에서 도주한 플래그도 유지)
+    slots.forEach(s => {
+        if (fled[s] || data[`fled_${s}`]) updBase[`fled_${s}`] = true;
+    });
 
     if (isGameOver) {
         const ls = hp['left_a'] + hp['left_b'], rs = hp['right_a'] + hp['right_b'];
@@ -1080,14 +1095,16 @@ function updateUI2v2(data,side,phase,status){
         if(raw&&raw.includes('|')){const[fn,num]=raw.split('|');if(nEl)nEl.innerText=fn;if(iEl)iEl.innerHTML=`<img src="image/${fn.split(' ')[0]}${num}.png" class="w-full h-full object-cover">`;}
         else{if(nEl)nEl.innerText=raw||"대기 중...";if(!raw&&iEl)iEl.innerHTML='<span class="text-gray-500 text-xs">No Image</span>';}
         const hp    = Math.max(0, data[`hp_${s}`]??100);
+        const hasFled2 = !!data[`fled_${s}`];
+        const isOut = hp <= 0 || hasFled2;
         const maxHp = 100;
         const pct   = Math.max(0, Math.min(100, (hp / maxHp) * 100));
         if(hpBar) hpBar.style.width = pct + "%";
-        if(hpTxt) hpTxt.innerText  = `${hp} / ${DEFAULT_MAX_HP}`;
+        if(hpTxt) hpTxt.innerText  = hasFled2 ? `${hp} / ${DEFAULT_MAX_HP} (도주)` : `${hp} / ${DEFAULT_MAX_HP}`;
         const wrapper=iEl?.parentElement?.parentElement;
-        if(wrapper) wrapper.style.opacity = hp<=0 ? '0.5' : '1';
+        if(wrapper) wrapper.style.opacity = isOut ? '0.5' : '1';
         // 사망/도주 시 이미지 회색 처리
-        if(iEl) iEl.style.filter = hp<=0 ? 'grayscale(100%) brightness(0.5)' : '';
+        if(iEl) iEl.style.filter = isOut ? 'grayscale(100%) brightness(0.5)' : '';
     });
     // 개인 주사위 표시 (2v2)
     ['left_a','left_b','right_a','right_b'].forEach(s=>{
@@ -1137,6 +1154,13 @@ function updateUI2v2(data,side,phase,status){
     slots.forEach(s=>{
         const btns=document.getElementById(`btns-${s}`); if(!btns) return;
         const isMySlot=side===s, isMyTeamTurn=data.turnFirst===teamOf(s), myHp=data[`hp_${s}`]??100, acted=!!data[`action_${s}`];
+        const hasFled = !!data[`fled_${s}`];
+        // 도주 성공한 경우 버튼 대신 (도주) 표시
+        if(hasFled){
+            btns.classList.remove('hidden');
+            btns.innerHTML='<span style="color:#ffcc44;font-weight:bold;font-size:1rem;">(도주)</span>';
+            return;
+        }
         const canAct=isFighting&&isMySlot&&isMyTeamTurn&&myHp>0&&!acted;
         if(canAct){
             btns.classList.remove('hidden');
@@ -1167,28 +1191,36 @@ function updateResultOverlay(data,side){
         const hpLA=Math.max(0,data.hp_left_a??0), hpLB=Math.max(0,data.hp_left_b??0);
         const hpRA=Math.max(0,data.hp_right_a??0), hpRB=Math.max(0,data.hp_right_b??0);
         const ls=hpLA+hpLB, rs=hpRA+hpRB;
-        const lA=ls>0,rA=rs>0; const myTeam=is2v2Side(side)?teamOf(side):side;
+        const leftAlive = (hpLA>0 && !data.fled_left_a) || (hpLB>0 && !data.fled_left_b);
+        const rightAlive = (hpRA>0 && !data.fled_right_a) || (hpRB>0 && !data.fled_right_b);
+        const lA=leftAlive, rA=rightAlive; const myTeam=is2v2Side(side)?teamOf(side):side;
         if(!lA&&!rA){resTitle.innerText="무승부!";resTitle.className="text-4xl font-black mb-6 italic tracking-widest text-gray-400";}
         else if(side==='admin'){resTitle.innerText=!lA?"오른팀 승리!":"왼팀 승리!";resTitle.className="text-3xl font-black mb-6 italic text-yellow-400";}
         else{const won=(myTeam==='left'&&(!rA||ls>rs))||(myTeam==='right'&&(!lA||rs>ls));resTitle.innerText=won?"승리!":"패배!";resTitle.className=won?"text-5xl font-black mb-6 italic tracking-widest text-yellow-400":"text-5xl font-black mb-6 italic tracking-widest text-red-500";}
         const n = s => (data[`name_${s}`]||'').split('|')[0];
+        const hpLabel = (hp, slot) => data[`fled_${slot}`] ? `HP ${hp} (도주)` : `HP ${hp}`;
         document.getElementById('res-name-la').innerText = n('left_a');
-        document.getElementById('res-hp-la').innerText  = `HP ${hpLA}`;
+        document.getElementById('res-hp-la').innerText  = hpLabel(hpLA,'left_a');
         document.getElementById('res-name-lb').innerText = n('left_b');
-        document.getElementById('res-hp-lb').innerText  = `HP ${hpLB}`;
+        document.getElementById('res-hp-lb').innerText  = hpLabel(hpLB,'left_b');
         document.getElementById('res-name-ra').innerText = n('right_a');
-        document.getElementById('res-hp-ra').innerText  = `HP ${hpRA}`;
+        document.getElementById('res-hp-ra').innerText  = hpLabel(hpRA,'right_a');
         document.getElementById('res-name-rb').innerText = n('right_b');
-        document.getElementById('res-hp-rb').innerText  = `HP ${hpRB}`;
+        document.getElementById('res-hp-rb').innerText  = hpLabel(hpRB,'right_b');
     } else {
         if(rows1) rows1.style.display='';
         if(rows2) rows2.style.display='none';
         const nL=(data.name_left||'').split('|')[0],nR=(data.name_right||'').split('|')[0];
         const hpL=Math.max(0,data.hp_left??0),hpR=Math.max(0,data.hp_right??0);
-        document.getElementById('res-name-left').innerText=nL; document.getElementById('res-hp-left').innerText=`HP ${hpL}`;
-        document.getElementById('res-name-right').innerText=nR; document.getElementById('res-hp-right').innerText=`HP ${hpR}`;
-        const iLW=hpR<=0||hpL>hpR,iRW=hpL<=0||hpR>hpL;
-        if(hpL===hpR){resTitle.innerText="무승부!";resTitle.className="text-4xl font-black mb-6 italic tracking-widest text-gray-400";}
+        const fledL=!!data.fled_left, fledR=!!data.fled_right;
+        document.getElementById('res-name-left').innerText=nL;
+        document.getElementById('res-hp-left').innerText=fledL?`HP ${hpL} (도주)`:`HP ${hpL}`;
+        document.getElementById('res-name-right').innerText=nR;
+        document.getElementById('res-hp-right').innerText=fledR?`HP ${hpR} (도주)`:`HP ${hpR}`;
+        const leftOut=hpL<=0||fledL, rightOut=hpR<=0||fledR;
+        const iLW=rightOut&&!leftOut||(!leftOut&&!rightOut&&hpL>hpR);
+        const iRW=leftOut&&!rightOut||(!leftOut&&!rightOut&&hpR>hpL);
+        if(leftOut&&rightOut){resTitle.innerText="무승부!";resTitle.className="text-4xl font-black mb-6 italic tracking-widest text-gray-400";}
         else if(side==='admin'){resTitle.innerText=iLW?`${nL} 승리!`:`${nR} 승리!`;resTitle.className="text-3xl font-black mb-6 italic text-yellow-400";}
         else{const won=(iLW&&side==='left')||(iRW&&side==='right');resTitle.innerText=won?"승리!":"패배!";resTitle.className=won?"text-5xl font-black mb-6 italic tracking-widest text-yellow-400":"text-5xl font-black mb-6 italic tracking-widest text-red-500";}
     }
@@ -1438,6 +1470,8 @@ async function startGame(){
         upd.target_left_a="";upd.target_left_b="";upd.target_right_a="";upd.target_right_b="";
         upd.left_done=false;upd.right_done=false;
         upd.dice_left_a=0;upd.dice_left_b=0;upd.dice_right_a=0;upd.dice_right_b=0;
+        // 도주 플래그 초기화
+        upd.fled_left_a=false;upd.fled_left_b=false;upd.fled_right_a=false;upd.fled_right_b=false;
     }
     await window.dbUtils.updateDoc(roomRef,upd);
 }
