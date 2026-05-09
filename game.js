@@ -15,8 +15,9 @@ let _lastPhase = null;       // 페이즈 변경 감지용
 // ═══════════════════════════════════════════
 function roll(max) { return Math.floor(Math.random() * max) + 1; }
 // stat: 1~10 (Firestore characters.atkStat / defStat / dodgeStat / fleeStat)
-function rollAttack(stat=5)  { return roll(20) + Math.max(1, Math.min(10, stat||5)); }
-function rollDefense(stat=5) { return roll(20) + Math.max(1, Math.min(10, stat||5)); }
+// 공격/방어 = stat + 1d(21-stat) + 1d(stat)
+function rollAttack(stat=5)  { const s=Math.max(1,Math.min(10,stat||5)); return s + roll(21-s) + roll(s); }
+function rollDefense(stat=5) { const s=Math.max(1,Math.min(10,stat||5)); return s + roll(21-s) + roll(s); }
 function dodgeRate(stat=5)   { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
 function fleeRate(stat=5)    { return Math.max(0.1, Math.min(1.0, (stat||5) * 0.1)); }
 const DEFAULT_MAX_HP = 120;
@@ -161,7 +162,9 @@ async function rollDice(side) {
     if (d[`dice_${side}`] > 0)   { alert("이미 굴렸습니다!"); return; }
     if (d.phase !== "dice") return;
     document.getElementById(`dice-${side}`)?.classList.add('dice-rolling');
-    const result = Math.floor(Math.random() * 100) + 1;
+    const dodgeStat = Math.max(1, Math.min(10, Number(d[`stat_dodge_${side}`]) || 5));
+    const diceMax = dodgeStat * 10;
+    const result = Math.floor(Math.random() * diceMax) + 1;
     setTimeout(async () => { await window.dbUtils.updateDoc(roomRef, { [`dice_${side}`]: result }); }, 500);
 }
 
@@ -177,7 +180,10 @@ async function rollDice2v2(slot) {
     if (d[`dice_${slot}`] > 0)   { alert("이미 굴렸습니다!"); return; }
     if (d.phase !== "dice") return;
     document.getElementById(`dice-${slot}`)?.classList.add('dice-rolling');
-    const result = Math.floor(Math.random() * 100) + 1;
+    // dodgeStat에 따라 범위 결정: stat=1→1d10, stat=2→1d20, ..., stat=10→1d100
+    const dodgeStat = Math.max(1, Math.min(10, Number(d[`stat_dodge_${slot}`]) || 5));
+    const diceMax = dodgeStat * 10;
+    const result = Math.floor(Math.random() * diceMax) + 1;
     setTimeout(async () => {
         await window.dbUtils.updateDoc(roomRef, { [`dice_${slot}`]: result });
     }, 500);
@@ -1150,23 +1156,33 @@ function updateUI2v2(data,side,phase,status){
 // ─── 결과창 ───
 function updateResultOverlay(data,side){
     const ro=document.getElementById('result-overlay'); if(!ro) return;
-    if(data.status!=="ended"){ro.classList.add('hidden');return;}
-    ro.classList.remove('hidden');
+    if(data.status!=="ended"){ro.style.display='none';return;}
+    ro.style.display='flex';
     const resTitle=document.getElementById('result-title');
+    const rows1 = document.getElementById('res-1v1-rows');
+    const rows2 = document.getElementById('res-2v2-rows');
     if(data.roomType==='2vs2'){
-        const ls=Math.max(0,data.hp_left_a??0)+Math.max(0,data.hp_left_b??0);
-        const rs=Math.max(0,data.hp_right_a??0)+Math.max(0,data.hp_right_b??0);
+        if(rows1) rows1.style.display='none';
+        if(rows2) rows2.style.display='';
+        const hpLA=Math.max(0,data.hp_left_a??0), hpLB=Math.max(0,data.hp_left_b??0);
+        const hpRA=Math.max(0,data.hp_right_a??0), hpRB=Math.max(0,data.hp_right_b??0);
+        const ls=hpLA+hpLB, rs=hpRA+hpRB;
         const lA=ls>0,rA=rs>0; const myTeam=is2v2Side(side)?teamOf(side):side;
         if(!lA&&!rA){resTitle.innerText="무승부!";resTitle.className="text-4xl font-black mb-6 italic tracking-widest text-gray-400";}
         else if(side==='admin'){resTitle.innerText=!lA?"오른팀 승리!":"왼팀 승리!";resTitle.className="text-3xl font-black mb-6 italic text-yellow-400";}
         else{const won=(myTeam==='left'&&(!rA||ls>rs))||(myTeam==='right'&&(!lA||rs>ls));resTitle.innerText=won?"승리!":"패배!";resTitle.className=won?"text-5xl font-black mb-6 italic tracking-widest text-yellow-400":"text-5xl font-black mb-6 italic tracking-widest text-red-500";}
-        const rNL=document.getElementById('res-name-left'),rHL=document.getElementById('res-hp-left');
-        const rNR=document.getElementById('res-name-right'),rHR=document.getElementById('res-hp-right');
-        if(rNL)rNL.innerText=`왼팀: ${(data.name_left_a||'').split('|')[0]} / ${(data.name_left_b||'').split('|')[0]}`;
-        if(rHL)rHL.innerText=`HP ${ls}`;
-        if(rNR)rNR.innerText=`오른팀: ${(data.name_right_a||'').split('|')[0]} / ${(data.name_right_b||'').split('|')[0]}`;
-        if(rHR)rHR.innerText=`HP ${rs}`;
+        const n = s => (data[`name_${s}`]||'').split('|')[0];
+        document.getElementById('res-name-la').innerText = n('left_a');
+        document.getElementById('res-hp-la').innerText  = `HP ${hpLA}`;
+        document.getElementById('res-name-lb').innerText = n('left_b');
+        document.getElementById('res-hp-lb').innerText  = `HP ${hpLB}`;
+        document.getElementById('res-name-ra').innerText = n('right_a');
+        document.getElementById('res-hp-ra').innerText  = `HP ${hpRA}`;
+        document.getElementById('res-name-rb').innerText = n('right_b');
+        document.getElementById('res-hp-rb').innerText  = `HP ${hpRB}`;
     } else {
+        if(rows1) rows1.style.display='';
+        if(rows2) rows2.style.display='none';
         const nL=(data.name_left||'').split('|')[0],nR=(data.name_right||'').split('|')[0];
         const hpL=Math.max(0,data.hp_left??0),hpR=Math.max(0,data.hp_right??0);
         document.getElementById('res-name-left').innerText=nL; document.getElementById('res-hp-left').innerText=`HP ${hpL}`;
